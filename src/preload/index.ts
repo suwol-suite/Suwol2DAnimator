@@ -1,0 +1,37 @@
+import { contextBridge, ipcRenderer } from 'electron';
+
+contextBridge.exposeInMainWorld('suwol', {
+  appKind: 'electron-editor',
+  platform: process.platform,
+  versions: {
+    chrome: process.versions.chrome,
+    electron: process.versions.electron,
+    node: process.versions.node
+  },
+  project: {
+    createProject: (name: string) => ipcRenderer.invoke('project:create', name),
+    openProject: () => ipcRenderer.invoke('project:open'),
+    saveProject: (projectFilePath: string, project: unknown) =>
+      ipcRenderer.invoke('project:save', projectFilePath, project),
+    importImage: (projectFilePath: string) => ipcRenderer.invoke('project:import-image', projectFilePath),
+    createSampleAssets: (projectFilePath: string) => ipcRenderer.invoke('project:create-sample-assets', projectFilePath),
+    createSkinSampleAssets: (projectFilePath: string) => ipcRenderer.invoke('project:create-skin-sample-assets', projectFilePath),
+    createAnimationTimelinesSampleAssets: (projectFilePath: string) =>
+      ipcRenderer.invoke('project:create-animation-timelines-sample-assets', projectFilePath),
+    exportSuwol2DJson: (projectFilePath: string, project: unknown) =>
+      ipcRenderer.invoke('project:export-json', projectFilePath, project),
+    exportSuwol2DAsset: (projectFilePath: string, project: unknown) =>
+      ipcRenderer.invoke('project:export-suwol2d', projectFilePath, project),
+    createBackup: (projectFilePath: string, project: unknown) =>
+      ipcRenderer.invoke('project:create-backup', projectFilePath, project)
+  },
+  app: {
+    confirmUnsavedChanges: (projectName: string) => ipcRenderer.invoke('app:confirm-unsaved-changes', projectName),
+    forceClose: () => ipcRenderer.invoke('app:force-close'),
+    onCloseRequest: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on('app:request-close', listener);
+      return () => ipcRenderer.removeListener('app:request-close', listener);
+    }
+  }
+});

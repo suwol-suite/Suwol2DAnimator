@@ -1,0 +1,52 @@
+{
+  "name": "suwol-2d-animator",
+  "version": "0.12.0",
+  "private": true,
+  "description": "Standalone Electron editor for Suwol 2D Animator with a bundled Unity UPM package.",
+  "author": {
+    "name": "Suwol"
+  },
+  "license": "UNLICENSED",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "tsc --noEmit && electron-vite build",
+    "icons:generate": "node scripts/generate-icons.mjs",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "verify:format": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-format.mjs",
+    "verify:unity": "node scripts/unity-smoke-v9.mjs",
+    "verify:unity:release": "node scripts/unity-smoke-v9.mjs --release",
+    "dist:win": "electron-builder --win",
+    "dist:win:dir": "electron-builder --win dir",
+    "dist:win:portable": "electron-builder --win portable",
+    "dist:win:nsis": "electron-builder --win nsis",
+    "dist:linux:zip": "electron-builder --linux zip --x64 --publish never",
+    "release:check": "npm.cmd run typecheck && npm.cmd run build && npm.cmd audit && npm.cmd run verify:format && npm.cmd run verify:unity",
+    "release:win": "npm.cmd run release:check && npm.cmd run dist:win",
+    "release:checksums": "node scripts/create-checksums.mjs",
+    "release:unity-package": "node scripts/zip-unity-package.mjs",
+    "smoke:packaged": "node scripts/smoke-packaged-app.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^1.23.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^6.0.3",
+    "vite": "^7.3.6"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.1": true,
+    "electron-winstaller@5.4.0": true
+  }
+}

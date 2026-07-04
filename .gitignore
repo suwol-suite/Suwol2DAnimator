@@ -1,0 +1,29 @@
+node_modules/
+out/
+dist/
+release/
+*.log
+
+# Electron/Vite
+.vite/
+
+# Unity package development cache, if the package is opened from a Unity project.
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+!build/
+!build/icon.ico
+!build/icon.png
+Logs/
+UserSettings/
+.vs/
+*.csproj
+*.sln
+*.user
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb

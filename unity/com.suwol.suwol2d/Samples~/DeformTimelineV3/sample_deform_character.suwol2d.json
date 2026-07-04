@@ -1,0 +1,772 @@
+{
+  "version": 0,
+  "name": "sample_deform_character",
+  "bones": [
+    {
+      "name": "root",
+      "parent": "",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1
+    },
+    {
+      "name": "body",
+      "parent": "root",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1
+    },
+    {
+      "name": "upper_arm",
+      "parent": "body",
+      "x": 0.42,
+      "y": 0.18,
+      "rotation": -12,
+      "scaleX": 1,
+      "scaleY": 1
+    },
+    {
+      "name": "lower_arm",
+      "parent": "upper_arm",
+      "x": 0.3,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1
+    }
+  ],
+  "slots": [
+    {
+      "name": "body_slot",
+      "bone": "body",
+      "attachment": "body",
+      "drawOrder": 0
+    },
+    {
+      "name": "arm_slot",
+      "bone": "upper_arm",
+      "attachment": "arm_deform_mesh",
+      "drawOrder": 1
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": [
+        {
+          "name": "arm_deform_mesh",
+          "slot": "arm_slot",
+          "type": "mesh",
+          "image": "arm",
+          "x": 0,
+          "y": -0.25,
+          "rotation": -18,
+          "scaleX": 1,
+          "scaleY": 1,
+          "vertices": [
+            {
+              "x": -0.08,
+              "y": -0.11,
+              "u": 0,
+              "v": 0
+            },
+            {
+              "x": 0.18,
+              "y": -0.09,
+              "u": 0.35,
+              "v": 0
+            },
+            {
+              "x": 0.42,
+              "y": -0.075,
+              "u": 0.7,
+              "v": 0
+            },
+            {
+              "x": 0.64,
+              "y": -0.055,
+              "u": 1,
+              "v": 0
+            },
+            {
+              "x": 0.64,
+              "y": 0.055,
+              "u": 1,
+              "v": 1
+            },
+            {
+              "x": 0.42,
+              "y": 0.075,
+              "u": 0.7,
+              "v": 1
+            },
+            {
+              "x": 0.18,
+              "y": 0.09,
+              "u": 0.35,
+              "v": 1
+            },
+            {
+              "x": -0.08,
+              "y": 0.11,
+              "u": 0,
+              "v": 1
+            }
+          ],
+          "triangles": [
+            0,
+            1,
+            6,
+            0,
+            6,
+            7,
+            1,
+            2,
+            5,
+            1,
+            5,
+            6,
+            2,
+            3,
+            4,
+            2,
+            4,
+            5
+          ],
+          "weights": [
+            {
+              "vertex": 0,
+              "bones": [
+                {
+                  "bone": "upper_arm",
+                  "weight": 1
+                }
+              ]
+            },
+            {
+              "vertex": 1,
+              "bones": [
+                {
+                  "bone": "lower_arm",
+                  "weight": 0.2
+                },
+                {
+                  "bone": "upper_arm",
+                  "weight": 0.8
+                }
+              ]
+            },
+            {
+              "vertex": 2,
+              "bones": [
+                {
+                  "bone": "lower_arm",
+                  "weight": 0.5
+                },
+                {
+                  "bone": "upper_arm",
+                  "weight": 0.5
+                }
+              ]
+            },
+            {
+              "vertex": 3,
+              "bones": [
+                {
+                  "bone": "lower_arm",
+                  "weight": 1
+                }
+              ]
+            },
+            {
+              "vertex": 4,
+              "bones": [
+                {
+                  "bone": "lower_arm",
+                  "weight": 1
+                }
+              ]
+            },
+            {
+              "vertex": 5,
+              "bones": [
+                {
+                  "bone": "lower_arm",
+                  "weight": 0.5
+                },
+                {
+                  "bone": "upper_arm",
+                  "weight": 0.5
+                }
+              ]
+            },
+            {
+              "vertex": 6,
+              "bones": [
+                {
+                  "bone": "lower_arm",
+                  "weight": 0.2
+                },
+                {
+                  "bone": "upper_arm",
+                  "weight": 0.8
+                }
+              ]
+            },
+            {
+              "vertex": 7,
+              "bones": [
+                {
+                  "bone": "upper_arm",
+                  "weight": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "body",
+          "slot": "body_slot",
+          "type": "region",
+          "image": "body",
+          "x": 0,
+          "y": 0,
+          "rotation": 0,
+          "width": 0.9,
+          "height": 1.35,
+          "scaleX": 1,
+          "scaleY": 1
+        }
+      ]
+    }
+  ],
+  "attachments": [
+    {
+      "name": "arm_deform_mesh",
+      "slot": "arm_slot",
+      "type": "mesh",
+      "image": "arm",
+      "x": 0,
+      "y": -0.25,
+      "rotation": -18,
+      "scaleX": 1,
+      "scaleY": 1,
+      "vertices": [
+        {
+          "x": -0.08,
+          "y": -0.11,
+          "u": 0,
+          "v": 0
+        },
+        {
+          "x": 0.18,
+          "y": -0.09,
+          "u": 0.35,
+          "v": 0
+        },
+        {
+          "x": 0.42,
+          "y": -0.075,
+          "u": 0.7,
+          "v": 0
+        },
+        {
+          "x": 0.64,
+          "y": -0.055,
+          "u": 1,
+          "v": 0
+        },
+        {
+          "x": 0.64,
+          "y": 0.055,
+          "u": 1,
+          "v": 1
+        },
+        {
+          "x": 0.42,
+          "y": 0.075,
+          "u": 0.7,
+          "v": 1
+        },
+        {
+          "x": 0.18,
+          "y": 0.09,
+          "u": 0.35,
+          "v": 1
+        },
+        {
+          "x": -0.08,
+          "y": 0.11,
+          "u": 0,
+          "v": 1
+        }
+      ],
+      "triangles": [
+        0,
+        1,
+        6,
+        0,
+        6,
+        7,
+        1,
+        2,
+        5,
+        1,
+        5,
+        6,
+        2,
+        3,
+        4,
+        2,
+        4,
+        5
+      ],
+      "weights": [
+        {
+          "vertex": 0,
+          "bones": [
+            {
+              "bone": "upper_arm",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "vertex": 1,
+          "bones": [
+            {
+              "bone": "lower_arm",
+              "weight": 0.2
+            },
+            {
+              "bone": "upper_arm",
+              "weight": 0.8
+            }
+          ]
+        },
+        {
+          "vertex": 2,
+          "bones": [
+            {
+              "bone": "lower_arm",
+              "weight": 0.5
+            },
+            {
+              "bone": "upper_arm",
+              "weight": 0.5
+            }
+          ]
+        },
+        {
+          "vertex": 3,
+          "bones": [
+            {
+              "bone": "lower_arm",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "vertex": 4,
+          "bones": [
+            {
+              "bone": "lower_arm",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "vertex": 5,
+          "bones": [
+            {
+              "bone": "lower_arm",
+              "weight": 0.5
+            },
+            {
+              "bone": "upper_arm",
+              "weight": 0.5
+            }
+          ]
+        },
+        {
+          "vertex": 6,
+          "bones": [
+            {
+              "bone": "lower_arm",
+              "weight": 0.2
+            },
+            {
+              "bone": "upper_arm",
+              "weight": 0.8
+            }
+          ]
+        },
+        {
+          "vertex": 7,
+          "bones": [
+            {
+              "bone": "upper_arm",
+              "weight": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "body",
+      "slot": "body_slot",
+      "type": "region",
+      "image": "body",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "width": 0.9,
+      "height": 1.35,
+      "scaleX": 1,
+      "scaleY": 1
+    }
+  ],
+  "animations": [
+    {
+      "name": "idle",
+      "loop": true,
+      "bones": [
+        {
+          "bone": "root",
+          "translate": [
+            {
+              "time": 0,
+              "x": 0,
+              "y": 0
+            },
+            {
+              "time": 0.5,
+              "x": 0,
+              "y": 0.12
+            },
+            {
+              "time": 1,
+              "x": 0,
+              "y": 0
+            }
+          ],
+          "rotate": [],
+          "scale": []
+        },
+        {
+          "bone": "upper_arm",
+          "translate": [],
+          "rotate": [
+            {
+              "time": 0,
+              "rotation": -16
+            },
+            {
+              "time": 0.5,
+              "rotation": -4
+            },
+            {
+              "time": 1,
+              "rotation": -16
+            }
+          ],
+          "scale": []
+        }
+      ],
+      "deforms": [
+        {
+          "slot": "arm_slot",
+          "attachment": "arm_deform_mesh",
+          "keys": [
+            {
+              "time": 0,
+              "offsets": [
+                {
+                  "vertex": 0,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 1,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 2,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 3,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 4,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 5,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 6,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 7,
+                  "x": 0,
+                  "y": 0
+                }
+              ]
+            },
+            {
+              "time": 0.5,
+              "offsets": [
+                {
+                  "vertex": 1,
+                  "x": 0,
+                  "y": -0.025
+                },
+                {
+                  "vertex": 2,
+                  "x": 0.025,
+                  "y": -0.035
+                },
+                {
+                  "vertex": 3,
+                  "x": 0.04,
+                  "y": -0.02
+                },
+                {
+                  "vertex": 4,
+                  "x": 0.04,
+                  "y": 0.02
+                },
+                {
+                  "vertex": 5,
+                  "x": 0.025,
+                  "y": 0.035
+                },
+                {
+                  "vertex": 6,
+                  "x": 0,
+                  "y": 0.025
+                }
+              ]
+            },
+            {
+              "time": 1,
+              "offsets": [
+                {
+                  "vertex": 0,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 1,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 2,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 3,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 4,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 5,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 6,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 7,
+                  "x": 0,
+                  "y": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "walk",
+      "loop": true,
+      "bones": [
+        {
+          "bone": "upper_arm",
+          "translate": [],
+          "rotate": [
+            {
+              "time": 0,
+              "rotation": -35
+            },
+            {
+              "time": 0.25,
+              "rotation": 25
+            },
+            {
+              "time": 0.5,
+              "rotation": -35
+            }
+          ],
+          "scale": []
+        },
+        {
+          "bone": "lower_arm",
+          "translate": [],
+          "rotate": [
+            {
+              "time": 0,
+              "rotation": -45
+            },
+            {
+              "time": 0.25,
+              "rotation": 50
+            },
+            {
+              "time": 0.5,
+              "rotation": -45
+            }
+          ],
+          "scale": []
+        }
+      ],
+      "deforms": [
+        {
+          "slot": "arm_slot",
+          "attachment": "arm_deform_mesh",
+          "keys": [
+            {
+              "time": 0,
+              "offsets": [
+                {
+                  "vertex": 1,
+                  "x": -0.015,
+                  "y": -0.035
+                },
+                {
+                  "vertex": 2,
+                  "x": 0.035,
+                  "y": -0.045
+                },
+                {
+                  "vertex": 3,
+                  "x": 0.055,
+                  "y": -0.02
+                },
+                {
+                  "vertex": 4,
+                  "x": 0.025,
+                  "y": 0.03
+                },
+                {
+                  "vertex": 5,
+                  "x": -0.015,
+                  "y": 0.04
+                },
+                {
+                  "vertex": 6,
+                  "x": -0.025,
+                  "y": 0.025
+                }
+              ]
+            },
+            {
+              "time": 0.25,
+              "offsets": [
+                {
+                  "vertex": 1,
+                  "x": 0.02,
+                  "y": 0.03
+                },
+                {
+                  "vertex": 2,
+                  "x": 0.01,
+                  "y": 0.045
+                },
+                {
+                  "vertex": 3,
+                  "x": -0.035,
+                  "y": 0.035
+                },
+                {
+                  "vertex": 4,
+                  "x": -0.055,
+                  "y": -0.02
+                },
+                {
+                  "vertex": 5,
+                  "x": -0.015,
+                  "y": -0.04
+                },
+                {
+                  "vertex": 6,
+                  "x": 0.025,
+                  "y": -0.025
+                }
+              ]
+            },
+            {
+              "time": 0.5,
+              "offsets": [
+                {
+                  "vertex": 1,
+                  "x": -0.015,
+                  "y": -0.035
+                },
+                {
+                  "vertex": 2,
+                  "x": 0.035,
+                  "y": -0.045
+                },
+                {
+                  "vertex": 3,
+                  "x": 0.055,
+                  "y": -0.02
+                },
+                {
+                  "vertex": 4,
+                  "x": 0.025,
+                  "y": 0.03
+                },
+                {
+                  "vertex": 5,
+                  "x": -0.015,
+                  "y": 0.04
+                },
+                {
+                  "vertex": 6,
+                  "x": -0.025,
+                  "y": 0.025
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

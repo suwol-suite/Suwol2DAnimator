@@ -1,0 +1,72 @@
+{
+  "name": "com.suwol.suwol2d",
+  "displayName": "Suwol 2D Animator Runtime",
+  "version": "0.12.0",
+  "unity": "6000.0",
+  "description": "Unity runtime and importer for Suwol 2D Animator assets.",
+  "dependencies": {
+    "com.unity.modules.jsonserialize": "1.0.0"
+  },
+  "keywords": [
+    "2d",
+    "animation",
+    "runtime",
+    "editor",
+    "suwol"
+  ],
+  "author": {
+    "name": "Suwol"
+  },
+  "samples": [
+    {
+      "displayName": "Runtime MVP v0",
+      "description": "Sample JSON and textures for the Suwol 2D Runtime MVP.",
+      "path": "Samples~/RuntimeMvp"
+    },
+    {
+      "displayName": "Mesh Attachment v1",
+      "description": "Sample JSON and textures for a rigid mesh attachment character.",
+      "path": "Samples~/MeshAttachmentV1"
+    },
+    {
+      "displayName": "Weighted Mesh v2",
+      "description": "Sample JSON and textures for a weighted mesh attachment character.",
+      "path": "Samples~/WeightedMeshV2"
+    },
+    {
+      "displayName": "Deform Timeline v3",
+      "description": "Sample JSON and textures for mesh deform timeline playback.",
+      "path": "Samples~/DeformTimelineV3"
+    },
+    {
+      "displayName": "IK Constraint v5",
+      "description": "Sample JSON and textures for two-bone IK constraint playback.",
+      "path": "Samples~/IkConstraintV5"
+    },
+    {
+      "displayName": "Skin Attachment Swap v6",
+      "description": "Sample JSON and textures for multiple skins and slot attachment swaps.",
+      "path": "Samples~/SkinAttachmentSwapV6"
+    },
+    {
+      "displayName": "Importer Prefab Workflow v7",
+      "description": "Sample .suwol2d importer asset, debug JSON, and textures for generated prefab workflow.",
+      "path": "Samples~/ImporterPrefabWorkflowV7"
+    },
+    {
+      "displayName": "Animation Timelines v8",
+      "description": "Sample .suwol2d importer asset, debug JSON, and textures for attachment, draw order, slot color, and event timelines.",
+      "path": "Samples~/AnimationTimelinesV8"
+    },
+    {
+      "displayName": "Animation Mixing State Machine v10",
+      "description": "Sample .suwol2d importer asset, debug JSON, textures, and state machine data for single-layer crossfade playback.",
+      "path": "Samples~/AnimationMixingStateMachineV10"
+    },
+    {
+      "displayName": "Timeline Usability v11",
+      "description": "Sample .suwol2d importer asset, debug JSON, textures, explicit durations, and representative timeline key data.",
+      "path": "Samples~/TimelineUsabilityV11"
+    }
+  ]
+}

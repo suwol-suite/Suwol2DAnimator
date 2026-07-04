@@ -1,0 +1,60 @@
+appId: com.suwol.suwol2danimator
+productName: Suwol 2D Animator
+copyright: Copyright © 2026 Suwol
+asar: true
+compression: normal
+
+directories:
+  output: release
+
+files:
+  - out/**
+  - package.json
+
+extraMetadata:
+  main: out/main/index.js
+
+extraResources:
+  - from: unity/com.suwol.suwol2d
+    to: unity/com.suwol.suwol2d
+    filter:
+      - package.json
+      - README.md
+      - Runtime/**
+      - Editor/**
+      - Samples~/**
+      - Documentation~/**
+      - "*.meta"
+  - from: docs
+    to: docs
+  - from: README.md
+    to: README.md
+  - from: LICENSE
+    to: LICENSE
+  - from: THIRD-PARTY-NOTICES.md
+    to: THIRD-PARTY-NOTICES.md
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: dir
+    - target: portable
+    - target: nsis
+
+linux:
+  target:
+    - target: zip
+      arch:
+        - x64
+  category: Graphics
+  artifactName: "${productName}-${version}-linux-${arch}.${ext}"
+
+portable:
+  artifactName: "${productName}-${version}-portable.${ext}"
+
+nsis:
+  artifactName: "${productName} Setup ${version}.${ext}"
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
