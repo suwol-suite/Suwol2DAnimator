@@ -21,8 +21,18 @@ npm.cmd run typecheck
 npm.cmd run build
 npm.cmd audit
 npm.cmd run verify:format
+npm.cmd run verify:locales
 npm.cmd run verify:unity
 ```
+
+## Localization Smoke
+
+- [ ] `npm.cmd run verify:locales` passes.
+- [ ] App starts in Korean when no app setting exists.
+- [ ] Language selector switches to English without restart.
+- [ ] Selected language persists after app restart.
+- [ ] Toolbar, panels, timeline, validation, export/status, and about messages follow the selected language.
+- [ ] Unity package menu and inspector localization remains deferred for v15.
 
 ## Release Build
 

@@ -10,12 +10,19 @@ import type {
   Suwol2DSlotTimeline
 } from './suwol2d-format';
 import { defaultSkinName, getEffectiveSkins } from './skins.ts';
+import type { TranslationKey, TranslationParams } from './i18n/types';
 
 export type ValidationSeverity = 'error' | 'warning';
 
 export interface ValidationIssue {
   severity: ValidationSeverity;
   message: string;
+  code?: string;
+  messageKey?: TranslationKey;
+  params?: TranslationParams;
+  targetType?: string;
+  targetName?: string;
+  path?: string;
 }
 
 export interface ValidationResult {
@@ -138,7 +145,131 @@ export function validateDocument(document: Suwol2DDocument): ValidationResult {
 
   return {
     ok: !issues.some((issue) => issue.severity === 'error'),
-    issues
+    issues: issues.map(localizeValidationIssue)
+  };
+}
+
+function localizeValidationIssue(issue: ValidationIssue): ValidationIssue {
+  if (issue.messageKey) {
+    return issue;
+  }
+
+  const message = issue.message;
+  const duplicate = message.match(/^Duplicate (.+?) name: (.+)$/);
+  if (duplicate) {
+    return withKey(issue, 'validation.duplicateName', { type: duplicate[1], name: duplicate[2] });
+  }
+
+  const empty = message.match(/^(.+?) has an empty name\.$/);
+  if (empty) {
+    return withKey(issue, 'validation.emptyName', { type: empty[1] });
+  }
+
+  const animationMissingBone = message.match(/^Animation '(.+?)' references missing bone '(.+?)'\.$/);
+  if (animationMissingBone) {
+    return withKey(issue, 'validation.missingBone', { owner: `Animation '${animationMissingBone[1]}'`, name: animationMissingBone[2] });
+  }
+
+  const missingBone = message.match(/^(.+?) '(.+?)' references missing (parent |child |target |weight )?bone '(.+?)'\.$/);
+  if (missingBone) {
+    return withKey(issue, 'validation.missingBone', { owner: `${missingBone[1]} '${missingBone[2]}'`, name: missingBone[4] });
+  }
+
+  const missingSlot = message.match(/^(.+?) references missing slot '(.+?)'\.$/);
+  if (missingSlot) {
+    return withKey(issue, 'validation.missingSlot', { owner: missingSlot[1], name: missingSlot[2] });
+  }
+
+  const missingAttachment = message.match(/^(.+?) references missing attachment '(.+?)'\.$/);
+  if (missingAttachment) {
+    return withKey(issue, 'validation.missingAttachment', { owner: missingAttachment[1], name: missingAttachment[2] });
+  }
+
+  const noImage = message.match(/^Attachment '(.+?)' has no image\.$/);
+  if (noImage) {
+    return withKey(issue, 'validation.missingTexture', { name: noImage[1] });
+  }
+
+  const invalidDuration = message.match(/^Animation '(.+?)' has invalid duration\.$/);
+  if (invalidDuration) {
+    return withKey(issue, 'validation.invalidDuration', { animation: invalidDuration[1] });
+  }
+
+  const durationExceeded = message.match(/^Animation '(.+?)' (.+?) key at .+ is outside explicit duration (.+)\.$/);
+  if (durationExceeded) {
+    return withKey(issue, 'validation.durationExceeded', {
+      animation: durationExceeded[1],
+      label: durationExceeded[2],
+      duration: durationExceeded[3]
+    });
+  }
+
+  const invalidKeyTime = message.match(/^Animation '(.+?)' has invalid key time/);
+  if (invalidKeyTime) {
+    return withKey(issue, 'validation.invalidKeyTime', { animation: invalidKeyTime[1] });
+  }
+
+  const invalidNumber = message.match(/^(.+?) contains NaN or Infinity\.$/);
+  if (invalidNumber) {
+    return withKey(issue, 'validation.invalidNumber', { target: invalidNumber[1] });
+  }
+
+  const meshNeedsVertices = message.match(/^Mesh attachment '(.+?)' needs at least 3 vertices\.$/);
+  if (meshNeedsVertices) {
+    return withKey(issue, 'validation.meshNeedsVertices', { name: meshNeedsVertices[1] });
+  }
+
+  const meshNeedsTriangles = message.match(/^Mesh attachment '(.+?)' needs triangle indices\.$/);
+  if (meshNeedsTriangles) {
+    return withKey(issue, 'validation.meshNeedsTriangles', { name: meshNeedsTriangles[1] });
+  }
+
+  const meshTriangleOutOfRange = message.match(/^Mesh attachment '(.+?)' has triangle index outside vertex range\.$/);
+  if (meshTriangleOutOfRange) {
+    return withKey(issue, 'validation.meshTriangleOutOfRange', { name: meshTriangleOutOfRange[1] });
+  }
+
+  const meshWeightOutOfRange = message.match(/^Mesh attachment '(.+?)' has weight for vertex outside range\.$/);
+  if (meshWeightOutOfRange) {
+    return withKey(issue, 'validation.meshWeightOutOfRange', { name: meshWeightOutOfRange[1] });
+  }
+
+  const meshWeightMissingBone = message.match(/^Mesh attachment '(.+?)' references missing weight bone '(.+?)'\.$/);
+  if (meshWeightMissingBone) {
+    return withKey(issue, 'validation.meshWeightMissingBone', { name: meshWeightMissingBone[1], bone: meshWeightMissingBone[2] });
+  }
+
+  const stateMissingAnimation = message.match(/^State machine '(.+?)' state '(.+?)' references missing animation '(.+?)'\.$/);
+  if (stateMissingAnimation) {
+    return withKey(issue, 'validation.stateMachineMissingAnimation', {
+      machine: stateMissingAnimation[1],
+      state: stateMissingAnimation[2],
+      animation: stateMissingAnimation[3]
+    });
+  }
+
+  const ikMissingBone = message.match(/^IK constraint '(.+?)' references missing (parent|child|target) bone '(.+?)'\.$/);
+  if (ikMissingBone) {
+    return withKey(issue, 'validation.ikMissingBone', {
+      constraint: ikMissingBone[1],
+      role: ikMissingBone[2],
+      bone: ikMissingBone[3]
+    });
+  }
+
+  if (message === 'Document name is empty.') {
+    return withKey(issue, 'validation.documentNameEmpty');
+  }
+
+  return withKey(issue, 'validation.genericIssue', { message });
+}
+
+function withKey(issue: ValidationIssue, messageKey: TranslationKey, params: TranslationParams = {}): ValidationIssue {
+  return {
+    ...issue,
+    code: messageKey,
+    messageKey,
+    params
   };
 }
 

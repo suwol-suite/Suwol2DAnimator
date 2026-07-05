@@ -190,6 +190,23 @@ Automated release zip smoke:
 npm.cmd run verify:unity:release
 ```
 
+## Localization QA
+
+Confirm v15 Electron editor localization:
+
+- App starts with Korean UI by default when no app settings file exists.
+- Toolbar, panels, timeline, validation, export/status, settings, and about text
+  are shown in Korean.
+- Change `언어 / Language` to English.
+- UI updates immediately without restart.
+- Close and reopen the app.
+- English remains selected.
+- Change back to Korean and confirm the setting persists.
+- Validation messages and export blocked/success messages follow the selected
+  language.
+
+Unity package menu and inspector localization is deferred for v15.
+
 ## Unity Importer QA
 
 Use Unity `6000.5.2f1` or set `UNITY_EXE`.

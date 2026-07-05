@@ -148,6 +148,9 @@ resources/unity/com.suwol.suwol2d
   produced `release/Suwol 2D Animator-0.12.0-linux-x64.zip`.
 - If a manual workflow run should upload to a GitHub Release, set
   `upload_to_github_release` to `true` and ensure a matching release exists.
+- If localized UI text is missing in a packaged build, run
+  `npm.cmd run verify:locales`; locale JSON is bundled through renderer imports
+  and should not require an extra `extraResources` entry.
 
 ## Checklist
 

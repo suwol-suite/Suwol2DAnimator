@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 
 import type { HydratedProjectResult, ImportedImage, Suwol2DProjectFile } from '../../shared/suwol2d-format';
+import type { AppSettings } from '../../shared/app-settings';
+import type { LocaleCode } from '../../shared/i18n/types';
 
 export interface ExportJsonResult {
   exportPath: string;
@@ -36,7 +38,9 @@ export interface SuwolPreloadApi {
     createBackup(projectFilePath: string, project: Suwol2DProjectFile): Promise<string>;
   };
   app: {
-    confirmUnsavedChanges(projectName: string): Promise<UnsavedChangesChoice>;
+    getAppSettings(): Promise<AppSettings>;
+    saveAppSettings(settings: AppSettings): Promise<AppSettings>;
+    confirmUnsavedChanges(projectName: string, locale?: LocaleCode): Promise<UnsavedChangesChoice>;
     forceClose(): Promise<void>;
     onCloseRequest(callback: () => void): () => void;
   };

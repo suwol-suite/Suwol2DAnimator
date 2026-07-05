@@ -73,6 +73,7 @@ async function verifyPackagedResources(appExePath) {
     'unity/com.suwol.suwol2d/Documentation~/index.md',
     'docs/packaging-release-readiness-v12.md',
     'docs/manual-qa-dogfooding-v13.md',
+    'docs/localization-i18n-v15.md',
     'README.md',
     'LICENSE',
     'THIRD-PARTY-NOTICES.md'

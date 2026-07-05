@@ -61,6 +61,7 @@ npm.cmd run typecheck
 npm.cmd run build
 npm.cmd audit
 npm.cmd run verify:format
+npm.cmd run verify:locales
 npm.cmd run verify:unity
 ```
 
@@ -139,6 +140,30 @@ npm.cmd run dist:linux:zip
 The Linux workflow intentionally builds only the ZIP target. It does not build
 AppImage, deb, rpm, Snap, auto-updater metadata, or code-signing assets.
 
+## Localization
+
+The Electron editor supports Korean and English:
+
+```text
+default locale: ko
+fallback locale: en
+settings: userData/settings.json
+```
+
+Verify locale files:
+
+```powershell
+npm.cmd run verify:locales
+```
+
+See:
+
+```text
+docs/localization-i18n-v15.md
+```
+
+Unity package menu and inspector localization is deferred.
+
 ## Unity UPM Package
 
 Unity Package Manager:
@@ -185,6 +210,7 @@ release/com.suwol.suwol2d-0.12.0.zip
 - `docs/manual-qa-dogfooding-v13.md`
 - `docs/manual-qa-results-v13.md`
 - `docs/hotfix-candidates-0.12.1.md`
+- `docs/localization-i18n-v15.md`
 - `unity/com.suwol.suwol2d/Documentation~/index.md`
 - `unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md`
 

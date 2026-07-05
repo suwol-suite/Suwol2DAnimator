@@ -26,7 +26,9 @@ contextBridge.exposeInMainWorld('suwol', {
       ipcRenderer.invoke('project:create-backup', projectFilePath, project)
   },
   app: {
-    confirmUnsavedChanges: (projectName: string) => ipcRenderer.invoke('app:confirm-unsaved-changes', projectName),
+    getAppSettings: () => ipcRenderer.invoke('app:get-settings'),
+    saveAppSettings: (settings: unknown) => ipcRenderer.invoke('app:save-settings', settings),
+    confirmUnsavedChanges: (projectName: string, locale?: string) => ipcRenderer.invoke('app:confirm-unsaved-changes', projectName, locale),
     forceClose: () => ipcRenderer.invoke('app:force-close'),
     onCloseRequest: (callback: () => void) => {
       const listener = () => callback();

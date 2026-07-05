@@ -57,6 +57,7 @@ import { validateDocument } from '../../shared/validation';
 import type { ValidationIssue } from '../../shared/validation';
 import { createUnityRuntimeExport } from '../../shared/export-suwol2d';
 import { suwolReleaseInfo } from '../../shared/release-info';
+import type { LocaleCode, TranslationKey, TranslationParams } from '../../shared/i18n/types';
 import {
   attachmentExistsInAnySkin,
   cloneAttachment,
@@ -131,6 +132,7 @@ import {
   createTimelineUsabilitySampleDocument,
   createWeightedMeshSampleDocument
 } from './features/project/sample-project';
+import { useI18n } from './i18n/useI18n';
 
 type Selection =
   | { type: 'image'; name: string }
@@ -158,6 +160,10 @@ interface PreviewView {
   panY: number;
 }
 
+type StatusMessage =
+  | { key: TranslationKey; params?: TranslationParams }
+  | { text: string };
+
 const maxHistoryEntries = 100;
 const defaultPreviewView: PreviewView = { zoom: 1, panX: 0, panY: 0 };
 
@@ -169,6 +175,7 @@ const defaultProject: Suwol2DProjectFile = {
 };
 
 export function App() {
+  const { t, locale, setLocale: saveLocale, supportedLocales, settingsWarning } = useI18n();
   const [projectFilePath, setProjectFilePath] = useState('');
   const [projectPath, setProjectPath] = useState('');
   const [project, setProject] = useState<Suwol2DProjectFile>(defaultProject);
@@ -187,7 +194,7 @@ export function App() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [lastTimelineEvent, setLastTimelineEvent] = useState('');
   const [stateMachinePreview, setStateMachinePreview] = useState<StateMachinePreviewState>(() => createInitialStateMachinePreview(defaultProject.document));
-  const [status, setStatus] = useState('Ready');
+  const [statusMessage, setStatusMessage] = useState<StatusMessage>({ key: 'status.ready' });
   const [history, setHistory] = useState<EditorHistory>({ undo: [], redo: [] });
   const [isDirty, setIsDirty] = useState(false);
 
@@ -236,6 +243,13 @@ export function App() {
   }, [document.stateMachines, stateMachinePreview]);
   const validationErrorCount = validation.issues.filter((issue) => issue.severity === 'error').length;
   const validationWarningCount = validation.issues.filter((issue) => issue.severity === 'warning').length;
+  const status = 'key' in statusMessage ? t(statusMessage.key, statusMessage.params) : statusMessage.text;
+  const setStatus = (message: string) => setStatusMessage({ text: message });
+  const setLocalizedStatus = (key: TranslationKey, params?: TranslationParams) => setStatusMessage({ key, params });
+
+  async function handleLocaleChange(nextLocale: LocaleCode): Promise<void> {
+    await saveLocale(nextLocale);
+  }
 
   useEffect(() => {
     projectRef.current = project;
@@ -250,8 +264,14 @@ export function App() {
   }, [isDirty]);
 
   useEffect(() => {
-    globalThis.document.title = `Suwol 2D Animator - ${document.name || 'Untitled'}${isDirty ? ' *' : ''}`;
-  }, [document.name, isDirty]);
+    globalThis.document.title = `${t('app.title')} - ${document.name || t('app.untitled')}${isDirty ? ' *' : ''}`;
+  }, [document.name, isDirty, t]);
+
+  useEffect(() => {
+    if (settingsWarning) {
+      setLocalizedStatus('settings.saveWarning', { message: settingsWarning });
+    }
+  }, [settingsWarning]);
 
   useEffect(() => {
     if (!isDirty || !projectFilePath) {
@@ -260,8 +280,8 @@ export function App() {
 
     const timeout = window.setTimeout(() => {
       window.suwol.project.createBackup(projectFilePath, projectRef.current)
-        .then((backupPath) => setStatus(`Backup saved: ${backupPath}`))
-        .catch((error: unknown) => setStatus(`Backup warning: ${getErrorMessage(error)}`));
+        .then((backupPath) => setLocalizedStatus('status.backupSaved', { path: backupPath }))
+        .catch((error: unknown) => setLocalizedStatus('status.backupWarning', { message: getErrorMessage(error) }));
     }, 10000);
 
     return () => window.clearTimeout(timeout);
@@ -407,17 +427,17 @@ export function App() {
   function handleCopyTimelineKey() {
     const copied = copyTimelineKey(projectRef.current.document, timelineKeySelection);
     if (!copied) {
-      setStatus('Select a timeline key before copying.');
+      setLocalizedStatus('status.selectKeyBeforeCopy');
       return;
     }
 
     setTimelineClipboard(copied);
-    setStatus(`Copied ${copied.type} key.`);
+    setLocalizedStatus('status.copiedKey', { type: copied.type });
   }
 
   function handlePasteTimelineKey() {
     if (!timelineClipboard || !currentAnimationName) {
-      setStatus('Copy a timeline key before pasting.');
+      setLocalizedStatus('status.copyBeforePaste');
       return;
     }
 
@@ -427,12 +447,12 @@ export function App() {
         setTimelineKeySelection(pasted);
       }
     });
-    setStatus('Pasted timeline key.');
+    setLocalizedStatus('status.pastedKey');
   }
 
   function handleDuplicateTimelineKey() {
     if (!timelineKeySelection) {
-      setStatus('Select a timeline key before duplicating.');
+      setLocalizedStatus('status.selectKeyBeforeDuplicate');
       return;
     }
 
@@ -442,12 +462,12 @@ export function App() {
         setTimelineKeySelection(duplicated);
       }
     });
-    setStatus('Duplicated timeline key.');
+    setLocalizedStatus('status.duplicatedKey');
   }
 
   function handleDeleteTimelineKey() {
     if (!timelineKeySelection) {
-      setStatus('Select a timeline key before deleting.');
+      setLocalizedStatus('status.selectKeyBeforeDelete');
       return;
     }
 
@@ -456,7 +476,7 @@ export function App() {
         setTimelineKeySelection(null);
       }
     });
-    setStatus('Deleted timeline key.');
+    setLocalizedStatus('status.deletedKey');
   }
 
   function setSelectedTimelineKeyTime(value: number) {
@@ -507,7 +527,7 @@ export function App() {
     setTimelineKeySelection(null);
     setTimelineClipboard(null);
     setSelection(nextProject.document.bones[0] ? { type: 'bone', name: nextProject.document.bones[0].name } : null);
-    setStatus(`Loaded ${nextProject.document.name}`);
+    setLocalizedStatus('status.loadedProject', { name: nextProject.document.name });
   }
 
   async function handleNewProject() {
@@ -515,7 +535,7 @@ export function App() {
       return;
     }
 
-    const name = window.prompt('Project name', 'sample_character')?.trim();
+    const name = window.prompt(t('inspector.name'), 'sample_character')?.trim();
     if (!name) return;
 
     try {
@@ -540,7 +560,7 @@ export function App() {
   async function saveCurrentProject(nextProject = projectRef.current): Promise<boolean> {
     const filePath = projectFilePathRef.current;
     if (!filePath) {
-      setStatus('Create or open a project before saving.');
+      setLocalizedStatus('status.createOrOpenBeforeSaving');
       return false;
     }
 
@@ -548,7 +568,7 @@ export function App() {
       const result = await window.suwol.project.saveProject(filePath, nextProject);
       await loadProject(result, false);
       setIsDirty(false);
-      setStatus('Project saved.');
+      setLocalizedStatus('status.projectSaved');
       return true;
     } catch (error) {
       setStatus(getErrorMessage(error));
@@ -565,9 +585,9 @@ export function App() {
       return true;
     }
 
-    const choice = await window.suwol.app.confirmUnsavedChanges(projectRef.current.document.name);
+    const choice = await window.suwol.app.confirmUnsavedChanges(projectRef.current.document.name, locale);
     if (choice === 'cancel') {
-      setStatus('Action cancelled.');
+      setLocalizedStatus('status.actionCancelled');
       return false;
     }
 
@@ -595,7 +615,7 @@ export function App() {
 
   async function handleImportImage() {
     if (!projectFilePath) {
-      setStatus('Create or open a project before importing images.');
+      setLocalizedStatus('status.createOrOpenBeforeImport');
       return;
     }
 
@@ -606,7 +626,7 @@ export function App() {
         draft.importedImages = [...draft.importedImages, image];
       });
       setSelection({ type: 'image', name: image.name });
-      setStatus(`Imported ${image.fileName}.`);
+      setLocalizedStatus('status.importedImage', { fileName: image.fileName });
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -614,7 +634,7 @@ export function App() {
 
   async function handleCreateSampleCharacter() {
     if (!projectFilePath) {
-      setStatus('Create a project before creating a sample character.');
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.region') });
       return;
     }
 
@@ -629,7 +649,7 @@ export function App() {
       setCurrentAnimationName('idle');
       setCurrentTime(0);
       setSelection({ type: 'bone', name: 'root' });
-      setStatus('Sample character created. Save or export when ready.');
+      setLocalizedStatus('status.sampleCreated', { sample: t('sample.region') });
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -637,7 +657,7 @@ export function App() {
 
   async function handleCreateMeshSampleCharacter() {
     if (!projectFilePath) {
-      setStatus('Create a project before creating a mesh sample character.');
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.mesh') });
       return;
     }
 
@@ -652,7 +672,7 @@ export function App() {
       setCurrentAnimationName('idle');
       setCurrentTime(0);
       setSelection({ type: 'attachment', name: 'arm_mesh' });
-      setStatus('Mesh sample character created. Save or export when ready.');
+      setLocalizedStatus('status.sampleCreated', { sample: t('sample.mesh') });
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -660,7 +680,7 @@ export function App() {
 
   async function handleCreateWeightedMeshSampleCharacter() {
     if (!projectFilePath) {
-      setStatus('Create a project before creating a weighted mesh sample character.');
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.weighted') });
       return;
     }
 
@@ -675,7 +695,7 @@ export function App() {
       setCurrentAnimationName('walk');
       setCurrentTime(0);
       setSelection({ type: 'attachment', name: 'arm_weighted_mesh' });
-      setStatus('Weighted mesh sample character created. Save or export when ready.');
+      setLocalizedStatus('status.sampleCreated', { sample: t('sample.weighted') });
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -683,7 +703,7 @@ export function App() {
 
   async function handleCreateDeformSampleCharacter() {
     if (!projectFilePath) {
-      setStatus('Create a project before creating a deform sample character.');
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.deform') });
       return;
     }
 
@@ -698,7 +718,7 @@ export function App() {
       setCurrentAnimationName('walk');
       setCurrentTime(0);
       setSelection({ type: 'attachment', name: 'arm_deform_mesh' });
-      setStatus('Deform sample character created. Save or export when ready.');
+      setLocalizedStatus('status.sampleCreated', { sample: t('sample.deform') });
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -706,7 +726,7 @@ export function App() {
 
   async function handleCreateIkSampleCharacter() {
     if (!projectFilePath) {
-      setStatus('Create a project before creating an IK sample character.');
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.ik') });
       return;
     }
 
@@ -721,7 +741,7 @@ export function App() {
       setCurrentAnimationName('walk');
       setCurrentTime(0);
       setSelection({ type: 'ikConstraint', name: 'arm_ik' });
-      setStatus('IK sample character created. Save or export when ready.');
+      setLocalizedStatus('status.sampleCreated', { sample: t('sample.ik') });
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -729,7 +749,7 @@ export function App() {
 
   async function handleCreateSkinSampleCharacter() {
     if (!projectFilePath) {
-      setStatus('Create a project before creating a skin sample character.');
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.skin') });
       return;
     }
 
@@ -744,7 +764,7 @@ export function App() {
       setCurrentAnimationName('walk');
       setCurrentTime(0);
       setSelection({ type: 'skin', name: 'armor_01' });
-      setStatus('Skin sample character created. Switch skins to preview attachment swaps.');
+      setLocalizedStatus('status.skinSampleCreated');
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -752,7 +772,7 @@ export function App() {
 
   async function handleCreateAnimationTimelinesSampleCharacter() {
     if (!projectFilePath) {
-      setStatus('Create a project before creating an animation timelines sample character.');
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.timelines') });
       return;
     }
 
@@ -768,7 +788,7 @@ export function App() {
       setCurrentTime(0);
       setTimelineMode('attachment');
       setSelection({ type: 'slot', name: 'weapon_slot' });
-      setStatus('Animation Timelines sample created. Try attachment, draw order, slot color, and event timelines.');
+      setLocalizedStatus('status.timelinesSampleCreated');
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -776,7 +796,7 @@ export function App() {
 
   async function handleCreateAnimationMixingStateMachineSampleCharacter() {
     if (!projectFilePath) {
-      setStatus('Create a project before creating an animation mixing state machine sample character.');
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.stateMachine') });
       return;
     }
 
@@ -794,7 +814,7 @@ export function App() {
       setTimelineMode('bone');
       setStateMachinePreview(createInitialStateMachinePreview(sampleDocument, 'default'));
       setSelection({ type: 'stateMachine', name: 'default' });
-      setStatus('Animation Mixing / State Machine sample created. Start preview and toggle moving or fire attack.');
+      setLocalizedStatus('status.stateMachineSampleCreated');
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -802,7 +822,7 @@ export function App() {
 
   async function handleCreateTimelineUsabilitySampleCharacter() {
     if (!projectFilePath) {
-      setStatus('Create a project before creating a timeline editing sample character.');
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.timelineEditing') });
       return;
     }
 
@@ -820,7 +840,7 @@ export function App() {
       setTimelineFilter('all');
       setTimelineKeySelection(null);
       setSelection({ type: 'bone', name: 'root' });
-      setStatus('Timeline Editing sample created. Try key list filters, copy/paste, duplicate, snap, and the selected key inspector.');
+      setLocalizedStatus('status.timelineEditingSampleCreated');
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -828,7 +848,7 @@ export function App() {
 
   async function handleExportJson() {
     if (!projectFilePath) {
-      setStatus('Create or open a project before exporting.');
+      setLocalizedStatus('status.createOrOpenBeforeExport');
       return;
     }
 
@@ -836,7 +856,7 @@ export function App() {
     const exportErrors = exportValidation.issues.filter((issue) => issue.severity === 'error');
     const exportWarnings = exportValidation.issues.filter((issue) => issue.severity === 'warning');
     if (exportErrors.length > 0) {
-      setStatus(`Export blocked: ${exportErrors.length} error(s). Check the validation panel.`);
+      setLocalizedStatus('status.exportBlocked', { count: exportErrors.length });
       return;
     }
 
@@ -845,10 +865,10 @@ export function App() {
       if (!exportResult) return;
       setProject((value) => ({ ...value, lastExportPath: exportResult.exportPath }));
       const textureSummary = exportResult.texturePaths.length
-        ? ` Textures: ${exportResult.texturePaths.map((path) => path.split(/[\\/]/).pop()).join(', ')}.`
-        : ' No textures copied.';
-      const warningSummary = exportWarnings.length ? ` ${exportWarnings.length} warning(s).` : '';
-      setStatus(`Export completed: ${exportResult.exportPath}.${textureSummary}${warningSummary}`);
+        ? t('status.texturesCopied', { textures: exportResult.texturePaths.map((path) => path.split(/[\\/]/).pop()).join(', ') })
+        : t('status.noTexturesCopied');
+      const warningSummary = exportWarnings.length ? ` ${t('status.warningCount', { count: exportWarnings.length })}` : '';
+      setLocalizedStatus('status.exportCompleted', { path: exportResult.exportPath, textures: textureSummary, warnings: warningSummary });
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -856,7 +876,7 @@ export function App() {
 
   async function handleExportSuwol2DAsset() {
     if (!projectFilePath) {
-      setStatus('Create or open a project before exporting.');
+      setLocalizedStatus('status.createOrOpenBeforeExport');
       return;
     }
 
@@ -864,7 +884,7 @@ export function App() {
     const exportErrors = exportValidation.issues.filter((issue) => issue.severity === 'error');
     const exportWarnings = exportValidation.issues.filter((issue) => issue.severity === 'warning');
     if (exportErrors.length > 0) {
-      setStatus(`Export blocked: ${exportErrors.length} error(s). Check the validation panel.`);
+      setLocalizedStatus('status.exportBlocked', { count: exportErrors.length });
       return;
     }
 
@@ -873,10 +893,15 @@ export function App() {
       if (!exportResult) return;
       setProject((value) => ({ ...value, lastExportPath: exportResult.exportPath }));
       const textureSummary = exportResult.texturePaths.length
-        ? ` Textures: ${exportResult.texturePaths.map((path) => path.split(/[\\/]/).pop()).join(', ')}.`
-        : ' No textures copied.';
-      const warningSummary = exportWarnings.length ? ` ${exportWarnings.length} warning(s).` : '';
-      setStatus(`Export completed: ${exportResult.exportPath}. Debug JSON: ${exportResult.debugJsonPath}.${textureSummary}${warningSummary}`);
+        ? t('status.texturesCopied', { textures: exportResult.texturePaths.map((path) => path.split(/[\\/]/).pop()).join(', ') })
+        : t('status.noTexturesCopied');
+      const warningSummary = exportWarnings.length ? ` ${t('status.warningCount', { count: exportWarnings.length })}` : '';
+      setLocalizedStatus('status.exportCompletedWithDebug', {
+        path: exportResult.exportPath,
+        debugPath: exportResult.debugJsonPath,
+        textures: textureSummary,
+        warnings: warningSummary
+      });
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -920,7 +945,7 @@ export function App() {
       setProject(nextProject);
       setIsDirty(true);
       isDirtyRef.current = true;
-      setStatus('Undo.');
+      setLocalizedStatus('status.undo');
       return {
         undo: current.undo.slice(0, -1),
         redo: [currentSnapshot, ...current.redo].slice(0, maxHistoryEntries)
@@ -941,7 +966,7 @@ export function App() {
       setProject(nextProject);
       setIsDirty(true);
       isDirtyRef.current = true;
-      setStatus('Redo.');
+      setLocalizedStatus('status.redo');
       return {
         undo: [...current.undo, currentSnapshot].slice(-maxHistoryEntries),
         redo: current.redo.slice(1)
@@ -1364,41 +1389,46 @@ export function App() {
   return (
     <main className="editor-shell">
       <header className="editor-toolbar">
-        <ToolbarButton label="New Project" onClick={handleNewProject} icon={<FilePlus2 size={17} />} />
-        <ToolbarButton label="Open Project" onClick={handleOpenProject} icon={<FolderOpen size={17} />} />
-        <ToolbarButton label="Save" onClick={() => void handleSaveProject()} icon={<Save size={17} />} />
-        <ToolbarButton label="Undo" onClick={undo} icon={<Undo2 size={17} />} disabled={history.undo.length === 0} />
-        <ToolbarButton label="Redo" onClick={redo} icon={<Redo2 size={17} />} disabled={history.redo.length === 0} />
-        <ToolbarButton label="Import Image" onClick={handleImportImage} icon={<ImagePlus size={17} />} />
-        <ToolbarButton label="Sample" onClick={handleCreateSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label="Mesh Sample" onClick={handleCreateMeshSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label="Weighted Sample" onClick={handleCreateWeightedMeshSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label="Deform Sample" onClick={handleCreateDeformSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label="IK Sample" onClick={handleCreateIkSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label="Skin Sample" onClick={handleCreateSkinSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label="Animation Timelines Sample" onClick={handleCreateAnimationTimelinesSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label="Mixing State Sample" onClick={handleCreateAnimationMixingStateMachineSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label="Timeline Editing Sample" onClick={handleCreateTimelineUsabilitySampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label="Export JSON" onClick={handleExportJson} icon={<Download size={17} />} />
-        <ToolbarButton label="Export .suwol2d" onClick={handleExportSuwol2DAsset} icon={<Download size={17} />} />
+        <ToolbarButton label={t('toolbar.newProject')} onClick={handleNewProject} icon={<FilePlus2 size={17} />} />
+        <ToolbarButton label={t('toolbar.openProject')} onClick={handleOpenProject} icon={<FolderOpen size={17} />} />
+        <ToolbarButton label={t('toolbar.saveProject')} onClick={() => void handleSaveProject()} icon={<Save size={17} />} />
+        <ToolbarButton label={t('toolbar.undo')} onClick={undo} icon={<Undo2 size={17} />} disabled={history.undo.length === 0} />
+        <ToolbarButton label={t('toolbar.redo')} onClick={redo} icon={<Redo2 size={17} />} disabled={history.redo.length === 0} />
+        <ToolbarButton label={t('toolbar.importImage')} onClick={handleImportImage} icon={<ImagePlus size={17} />} />
+        <ToolbarButton label={t('sample.region')} onClick={handleCreateSampleCharacter} icon={<Sparkles size={17} />} />
+        <ToolbarButton label={t('sample.mesh')} onClick={handleCreateMeshSampleCharacter} icon={<Sparkles size={17} />} />
+        <ToolbarButton label={t('sample.weighted')} onClick={handleCreateWeightedMeshSampleCharacter} icon={<Sparkles size={17} />} />
+        <ToolbarButton label={t('sample.deform')} onClick={handleCreateDeformSampleCharacter} icon={<Sparkles size={17} />} />
+        <ToolbarButton label={t('sample.ik')} onClick={handleCreateIkSampleCharacter} icon={<Sparkles size={17} />} />
+        <ToolbarButton label={t('sample.skin')} onClick={handleCreateSkinSampleCharacter} icon={<Sparkles size={17} />} />
+        <ToolbarButton label={t('sample.timelines')} onClick={handleCreateAnimationTimelinesSampleCharacter} icon={<Sparkles size={17} />} />
+        <ToolbarButton label={t('sample.stateMachine')} onClick={handleCreateAnimationMixingStateMachineSampleCharacter} icon={<Sparkles size={17} />} />
+        <ToolbarButton label={t('sample.timelineEditing')} onClick={handleCreateTimelineUsabilitySampleCharacter} icon={<Sparkles size={17} />} />
+        <ToolbarButton label={t('toolbar.exportJson')} onClick={handleExportJson} icon={<Download size={17} />} />
+        <ToolbarButton label={t('toolbar.exportSuwol2D')} onClick={handleExportSuwol2DAsset} icon={<Download size={17} />} />
         <div className="toolbar-separator" />
         <button className="icon-label-button" type="button" onClick={() => setIsPlaying((value) => !value)}>
           {isPlaying ? <Pause size={17} /> : <Play size={17} />}
-          <span>{isPlaying ? 'Stop' : 'Play'}</span>
+          <span>{isPlaying ? t('common.stop') : t('common.play')}</span>
         </button>
         <select value={currentAnimationName} onChange={(event) => { setCurrentAnimationName(event.target.value); setCurrentTime(0); setTimelineKeySelection(null); }}>
-          <option value="">No animation</option>
+          <option value="">{t('toolbar.noAnimation')}</option>
           {document.animations.map((animation) => (
             <option key={animation.name} value={animation.name}>{animation.name}</option>
           ))}
         </select>
         <label className="time-input">
-          <span>Time</span>
+          <span>{t('toolbar.time')}</span>
           <input type="number" value={round(currentTime)} min={0} step={safeSnapStep} onChange={(event) => setScrubTime(toNumber(event.target.value, currentTime))} />
         </label>
-        {isDirty && <span className="dirty-pill">Unsaved changes</span>}
+        <LanguageSelector
+          locale={locale}
+          locales={supportedLocales}
+          onChange={(nextLocale) => void handleLocaleChange(nextLocale)}
+        />
+        {isDirty && <span className="dirty-pill">{t('toolbar.unsavedChanges')}</span>}
         {(validationErrorCount > 0 || validationWarningCount > 0) && (
-          <span className="validation-pill">{validationErrorCount} errors / {validationWarningCount} warnings</span>
+          <span className="validation-pill">{t('toolbar.validationSummary', { errors: validationErrorCount, warnings: validationWarningCount })}</span>
         )}
         <span className="status-line">{status}</span>
       </header>
@@ -1406,7 +1436,7 @@ export function App() {
       <section className="editor-workspace">
         <aside className="left-panel panel">
           <ProjectHeader projectPath={projectPath} document={document} isDirty={isDirty} />
-          <ListSection title="Images" icon={<ImagePlus size={15} />} onAdd={handleImportImage}>
+          <ListSection title={t('panel.images')} icon={<ImagePlus size={15} />} onAdd={handleImportImage}>
             {project.importedImages.map((image) => (
               <ListButton
                 key={image.id}
@@ -1416,7 +1446,7 @@ export function App() {
               />
             ))}
           </ListSection>
-          <ListSection title="Bones" icon={<Bone size={15} />} onAdd={addBone}>
+          <ListSection title={t('panel.bones')} icon={<Bone size={15} />} onAdd={addBone}>
             {document.bones.map((bone) => (
               <ListButton
                 key={bone.name}
@@ -1427,7 +1457,7 @@ export function App() {
               />
             ))}
           </ListSection>
-          <ListSection title="Slots" icon={<Layers3 size={15} />} onAdd={addSlot}>
+          <ListSection title={t('panel.slots')} icon={<Layers3 size={15} />} onAdd={addSlot}>
             {[...document.slots].sort((a, b) => a.drawOrder - b.drawOrder).map((slot) => (
               <ListButton
                 key={slot.name}
@@ -1438,19 +1468,19 @@ export function App() {
               />
             ))}
           </ListSection>
-          <ListSection title="Skins" icon={<Layers3 size={15} />} onAdd={addSkin}>
+          <ListSection title={t('panel.skins')} icon={<Layers3 size={15} />} onAdd={addSkin}>
             {skins.map((skin) => (
               <ListButton
                 key={skin.name}
                 active={selection?.type === 'skin' && selection.name === skin.name}
-                label={`${skin.name}${skin.name === activeSkinName ? ' [active]' : ''}`}
+                label={`${skin.name}${skin.name === activeSkinName ? ` [${t('common.active')}]` : ''}`}
                 onClick={() => { setActiveSkinName(skin.name); setSelection({ type: 'skin', name: skin.name }); }}
                 onDelete={skin.name === defaultSkinName ? undefined : () => deleteSkin(skin.name)}
               />
             ))}
           </ListSection>
-          <ListSection title="Attachments" icon={<Box size={15} />} onAdd={() => addAttachment('region')}>
-            <button className="wide-action" type="button" onClick={() => addAttachment('mesh')}>Add Mesh Attachment</button>
+          <ListSection title={t('panel.attachments')} icon={<Box size={15} />} onAdd={() => addAttachment('region')}>
+            <button className="wide-action" type="button" onClick={() => addAttachment('mesh')}>{t('inspector.addMeshAttachment')}</button>
             {activeSkinAttachments.map((attachment) => (
               <ListButton
                 key={`${activeSkinName}-${attachment.slot}-${attachment.name}`}
@@ -1461,7 +1491,7 @@ export function App() {
               />
             ))}
           </ListSection>
-          <ListSection title="Animations" icon={<Play size={15} />} onAdd={addAnimation}>
+          <ListSection title={t('panel.animations')} icon={<Play size={15} />} onAdd={addAnimation}>
             {document.animations.map((animation) => (
               <ListButton
                 key={animation.name}
@@ -1472,7 +1502,7 @@ export function App() {
               />
             ))}
           </ListSection>
-          <ListSection title="IK Constraints" icon={<Bone size={15} />} onAdd={addIkConstraint}>
+          <ListSection title={t('panel.ikConstraints')} icon={<Bone size={15} />} onAdd={addIkConstraint}>
             {[...(document.ikConstraints ?? [])].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)).map((constraint) => (
               <ListButton
                 key={constraint.name}
@@ -1483,7 +1513,7 @@ export function App() {
               />
             ))}
           </ListSection>
-          <ListSection title="State Machines" icon={<Play size={15} />} onAdd={addStateMachine}>
+          <ListSection title={t('panel.stateMachines')} icon={<Play size={15} />} onAdd={addStateMachine}>
             {(document.stateMachines ?? []).map((machine) => (
               <ListButton
                 key={machine.name}
@@ -1541,26 +1571,26 @@ export function App() {
       <section className="timeline-panel">
         <div className="timeline-header">
           <div>
-            <strong>{currentAnimationName || 'No animation'}</strong>
-            <span>{duration ? `${round(duration)}s duration` : '0s duration'}</span>
+            <strong>{currentAnimationName || t('timeline.noAnimation')}</strong>
+            <span>{t('timeline.durationSeconds', { duration: duration ? round(duration) : 0 })}</span>
           </div>
           <div className="timeline-actions">
             <select value={timelineMode} onChange={(event) => setTimelineMode(event.target.value as TimelineMode)}>
-              <option value="bone">Bone</option>
-              <option value="deform">Deform</option>
-              <option value="attachment">Attachment</option>
-              <option value="drawOrder">Draw Order</option>
-              <option value="slotColor">Slot Color</option>
-              <option value="event">Event</option>
+              <option value="bone">{t('timeline.bone')}</option>
+              <option value="deform">{t('timeline.deform')}</option>
+              <option value="attachment">{t('timeline.attachment')}</option>
+              <option value="drawOrder">{t('timeline.drawOrder')}</option>
+              <option value="slotColor">{t('timeline.slotColor')}</option>
+              <option value="event">{t('timeline.event')}</option>
             </select>
             {timelineMode === 'bone' && (
               <>
-                <button type="button" onClick={() => addKey('translate')}>Add Translate Key</button>
-                <button type="button" onClick={() => addKey('rotate')}>Add Rotate Key</button>
-                <button type="button" onClick={() => addKey('scale')}>Add Scale Key</button>
+                <button type="button" onClick={() => addKey('translate')}>{t('timeline.addTranslateKey')}</button>
+                <button type="button" onClick={() => addKey('rotate')}>{t('timeline.addRotateKey')}</button>
+                <button type="button" onClick={() => addKey('scale')}>{t('timeline.addScaleKey')}</button>
               </>
             )}
-            {timelineMode === 'deform' && <button type="button" onClick={addDeformKey}>Add Deform Key</button>}
+            {timelineMode === 'deform' && <button type="button" onClick={addDeformKey}>{t('timeline.addDeformKey')}</button>}
           </div>
         </div>
         <TimelineTransport
@@ -1714,17 +1744,45 @@ function ToolbarButton({
   );
 }
 
+function LanguageSelector({
+  locale,
+  locales,
+  onChange
+}: {
+  locale: LocaleCode;
+  locales: ReadonlyArray<{ code: LocaleCode; nativeLabel: string }>;
+  onChange: (locale: LocaleCode) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <label className="language-selector">
+      <span>{t('settings.language')}</span>
+      <select value={locale} onChange={(event) => onChange(event.target.value as LocaleCode)}>
+        {locales.map((candidate) => (
+          <option key={candidate.code} value={candidate.code}>{candidate.nativeLabel}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function AboutReleasePanel() {
+  const { t, locale, setLocale, supportedLocales } = useI18n();
   return (
     <section className="inspector-section about-panel">
-      <h2><Info size={15} /> About</h2>
-      <ReadonlyRow label="Product" value={suwolReleaseInfo.productName} />
-      <ReadonlyRow label="Version" value={suwolReleaseInfo.appVersion} />
-      <ReadonlyRow label="Unity Package" value={`${suwolReleaseInfo.unityPackageName} ${suwolReleaseInfo.unityPackageVersion}`} />
-      <ReadonlyRow label="Format" value={`Suwol2D v${suwolReleaseInfo.formatVersion}`} />
-      <ReadonlyRow label="Supported" value={suwolReleaseInfo.supportedFeatures.join(', ')} />
-      <ReadonlyRow label="License" value={suwolReleaseInfo.license} />
-      <ReadonlyRow label="Docs" value={suwolReleaseInfo.docsPath} />
+      <h2><Info size={15} /> {t('about.title')}</h2>
+      <ReadonlyRow label={t('about.product')} value={suwolReleaseInfo.productName} />
+      <ReadonlyRow label={t('about.version')} value={suwolReleaseInfo.appVersion} />
+      <ReadonlyRow label={t('about.unityPackage')} value={`${suwolReleaseInfo.unityPackageName} ${suwolReleaseInfo.unityPackageVersion}`} />
+      <ReadonlyRow label={t('about.format')} value={`Suwol2D v${suwolReleaseInfo.formatVersion}`} />
+      <ReadonlyRow label={t('about.supported')} value={t('about.supportedFeatures')} />
+      <ReadonlyRow label={t('about.license')} value={suwolReleaseInfo.license} />
+      <ReadonlyRow label={t('about.docs')} value={suwolReleaseInfo.docsPath} />
+      <LanguageSelector
+        locale={locale}
+        locales={supportedLocales}
+        onChange={(nextLocale) => void setLocale(nextLocale)}
+      />
     </section>
   );
 }
@@ -1738,11 +1796,12 @@ function ProjectHeader({
   document: Suwol2DDocument;
   isDirty: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <section className="project-header">
       <p>Suwol2D Editor Skin v6</p>
       <h1>{document.name}{isDirty ? ' *' : ''}</h1>
-      <span>{projectPath || 'No project folder'}</span>
+      <span>{projectPath || t('common.noneSelected')}</span>
     </section>
   );
 }
@@ -1780,11 +1839,12 @@ function ListButton({
   onClick: () => void;
   onDelete?: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className={active ? 'list-row active' : 'list-row'}>
       <button type="button" onClick={onClick}>{label}</button>
       {onDelete && (
-        <button className="delete-button" type="button" onClick={onDelete} aria-label={`Delete ${label}`} title={`Delete ${label}`}>
+        <button className="delete-button" type="button" onClick={onDelete} aria-label={`${t('common.delete')} ${label}`} title={`${t('common.delete')} ${label}`}>
           <Trash2 size={14} />
         </button>
       )}
@@ -1801,16 +1861,17 @@ function ValidationPanel({
   issues: ValidationIssue[];
   onSelect: (selection: Selection) => void;
 }) {
+  const { t } = useI18n();
   const errors = issues.filter((issue) => issue.severity === 'error').length;
   const warnings = issues.filter((issue) => issue.severity === 'warning').length;
   return (
     <section className="validation-box">
       <div className="validation-header">
-        <h2>Validation</h2>
-        <span>{errors} errors / {warnings} warnings</span>
+        <h2>{t('panel.validation')}</h2>
+        <span>{t('validation.summary', { errors, warnings })}</span>
       </div>
       {issues.length === 0 ? (
-        <p>OK</p>
+        <p>{t('validation.noIssues')}</p>
       ) : (
         <div className="validation-list">
           {issues.map((issue, index) => {
@@ -1823,8 +1884,8 @@ function ValidationPanel({
                 onClick={() => targetSelection && onSelect(targetSelection)}
                 disabled={!targetSelection}
               >
-                <strong>{issue.severity.toUpperCase()}</strong>
-                <span>{issue.message}</span>
+                <strong>{issue.severity === 'error' ? t('common.error') : t('common.warning')}</strong>
+                <span>{issue.messageKey ? t(issue.messageKey, issue.params) : issue.message}</span>
               </button>
             );
           })}
@@ -1843,6 +1904,7 @@ function StateMachinePreviewPanel({
   preview: StateMachinePreviewState;
   setPreview: (updater: StateMachinePreviewState | ((current: StateMachinePreviewState) => StateMachinePreviewState)) => void;
 }) {
+  const { t } = useI18n();
   const machines = document.stateMachines ?? [];
   const machine = machines.find((candidate) => candidate.name === preview.machineName) ?? machines[0];
   if (machines.length === 0) {
@@ -1853,8 +1915,8 @@ function StateMachinePreviewPanel({
   return (
     <section className="validation-box state-machine-preview">
       <div className="validation-header">
-        <h2>State Machine Preview</h2>
-        <span>{preview.isRunning ? 'Running' : 'Stopped'}</span>
+        <h2>{t('panel.stateMachines')}</h2>
+        <span>{preview.isRunning ? t('common.running') : t('common.stopped')}</span>
       </div>
       <SelectField
         label="Machine"
@@ -1870,12 +1932,12 @@ function StateMachinePreviewPanel({
             isRunning: true
           }))}
         >
-          Start
+          {t('common.start')}
         </button>
-        <button type="button" onClick={() => setPreview((current) => ({ ...current, isRunning: false }))}>Stop</button>
+        <button type="button" onClick={() => setPreview((current) => ({ ...current, isRunning: false }))}>{t('common.stop')}</button>
       </div>
-      <ReadonlyRow label="Current" value={preview.currentStateName || 'None'} />
-      <ReadonlyRow label="Next" value={preview.nextStateName || 'None'} />
+      <ReadonlyRow label={t('timeline.currentTime')} value={preview.currentStateName || t('common.none')} />
+      <ReadonlyRow label="Next" value={preview.nextStateName || t('common.none')} />
       <ReadonlyRow label="Progress" value={`${Math.round(progress * 100)}%`} />
       {machine?.parameters.map((parameter) => (
         parameter.type === 'bool' ? (
@@ -1889,7 +1951,7 @@ function StateMachinePreviewPanel({
           </label>
         ) : (
           <button className="wide-action" type="button" key={parameter.name} onClick={() => setPreview((current) => firePreviewTrigger(current, parameter.name))}>
-            Fire {parameter.name}
+            {t('common.play')} {parameter.name}
           </button>
         )
       ))}
@@ -1910,6 +1972,7 @@ function StateMachineEditor({
   setSelection: (selection: Selection | null) => void;
   setStatus: (status: string) => void;
 }) {
+  const { t } = useI18n();
   const animationOptions = document.animations.map((animation) => animation.name);
   const stateOptions = machine.states.map((state) => state.name);
   const transitionFromOptions = ['*', ...stateOptions];
@@ -1924,7 +1987,7 @@ function StateMachineEditor({
 
   return (
     <section className="inspector-section state-machine-editor">
-      <h2>State Machine</h2>
+      <h2>{t('inspector.stateMachine')}</h2>
       <TextField label="Name" value={machine.name} onChange={(value) => renameStateMachine(document, updateDocument, machine.name, value, setSelection, setStatus)} />
       <SelectField label="Initial" value={machine.initialState} options={stateOptions} onChange={(value) => updateMachine((draftMachine) => { draftMachine.initialState = value; })} />
 
@@ -2038,10 +2101,11 @@ function Inspector({
   duplicateSkin: (name: string) => void;
   deleteSkin: (name: string) => void;
 }) {
+  const { t } = useI18n();
   if (!selection) {
     return (
       <section className="inspector-section">
-        <h2>Document</h2>
+        <h2>{t('inspector.document')}</h2>
         <TextField label="Name" value={document.name} onChange={(value) => updateDocument((draft) => { draft.name = value; })} />
       </section>
     );
@@ -2051,7 +2115,7 @@ function Inspector({
     const image = images.find((candidate) => candidate.name === selection.name);
     return (
       <section className="inspector-section">
-        <h2>Image</h2>
+        <h2>{t('inspector.image')}</h2>
         <ReadonlyRow label="Name" value={image?.name ?? selection.name} />
         <ReadonlyRow label="Path" value={image?.relativePath ?? ''} />
         <ReadonlyRow label="Size" value={image ? `${image.width} x ${image.height}` : ''} />
@@ -2064,7 +2128,7 @@ function Inspector({
     if (!bone) return null;
     return (
       <section className="inspector-section">
-        <h2>Bone</h2>
+        <h2>{t('inspector.bone')}</h2>
         <TextField label="Name" value={bone.name} onChange={(value) => renameBone(document, updateDocument, bone.name, value, setSelection, setStatus)} />
         <SelectField
           label="Parent"
@@ -2092,7 +2156,7 @@ function Inspector({
     ]);
     return (
       <section className="inspector-section">
-        <h2>Slot</h2>
+        <h2>{t('inspector.slot')}</h2>
         <TextField label="Name" value={slot.name} onChange={(value) => renameSlot(document, updateDocument, slot.name, value, setSelection, setStatus)} />
         <SelectField label="Bone" value={slot.bone} options={document.bones.map((bone) => bone.name)} onChange={(value) => updateDocument((draft) => { findSlot(draft, slot.name).bone = value; })} />
         <SelectField label="Attachment" value={slot.attachment} options={slotAttachmentOptions} onChange={(value) => updateDocument((draft) => { findSlot(draft, slot.name).attachment = value; })} />
@@ -2117,16 +2181,16 @@ function Inspector({
     if (!skin) return null;
     return (
       <section className="inspector-section">
-        <h2>Skin</h2>
+        <h2>{t('inspector.skin')}</h2>
         <TextField label="Name" value={skin.name} onChange={(value) => renameSkin(document, updateDocument, skin.name, value, setSelection, setActiveSkinName, setStatus)} />
-        <ReadonlyRow label="Active" value={activeSkinName === skin.name ? 'Yes' : 'No'} />
+        <ReadonlyRow label="Active" value={activeSkinName === skin.name ? t('common.yes') : t('common.no')} />
         <ReadonlyRow label="Attachments" value={String(skin.attachments.length)} />
         <button className="wide-action" type="button" onClick={() => { setActiveSkinName(skin.name); setSelection({ type: 'skin', name: skin.name }); }}>
-          Set Active Skin
+          {t('inspector.setActiveSkin')}
         </button>
         <div className="inspector-action-row">
-          <button type="button" onClick={() => duplicateSkin(skin.name)}>Duplicate Skin</button>
-          <button type="button" disabled={skin.name === defaultSkinName} onClick={() => deleteSkin(skin.name)}>Delete Skin</button>
+          <button type="button" onClick={() => duplicateSkin(skin.name)}>{t('inspector.duplicateSkin')}</button>
+          <button type="button" disabled={skin.name === defaultSkinName} onClick={() => deleteSkin(skin.name)}>{t('inspector.deleteSkin')}</button>
         </div>
       </section>
     );
@@ -2138,7 +2202,7 @@ function Inspector({
     const otherSkins = getEffectiveSkins(document).filter((skin) => skin.name !== activeSkinName);
     return (
       <section className="inspector-section">
-        <h2>Attachment</h2>
+        <h2>{t('inspector.attachment')}</h2>
         <TextField label="Name" value={attachment.name} onChange={(value) => renameAttachment(document, activeSkinName, updateDocument, attachment.name, value, setSelection, setStatus)} />
         <SelectField
           label="Type"
@@ -2272,14 +2336,14 @@ function Inspector({
   if (!animation) return null;
   return (
     <section className="inspector-section">
-      <h2>Animation</h2>
+      <h2>{t('inspector.animation')}</h2>
       <TextField
         label="Name"
         value={animation.name}
         onChange={(value) => renameAnimation(document, updateDocument, animation.name, value, setSelection, setCurrentAnimationName, setStatus)}
       />
       <label className="field-row checkbox-row">
-        <span>Loop</span>
+        <span>{t('common.loop')}</span>
         <input type="checkbox" checked={animation.loop} onChange={(event) => updateDocument((draft) => { findAnimation(draft, animation.name).loop = event.target.checked; })} />
       </label>
       <NumberField
@@ -2313,6 +2377,7 @@ function CanvasPreview({
   lastEvent: string;
   selection: Selection | null;
 }) {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageCache = useRef(new Map<string, HTMLImageElement>());
   const dragState = useRef<{ pointerId: number; x: number; y: number } | null>(null);
@@ -2569,13 +2634,13 @@ function CanvasPreview({
   return (
     <div className="preview-frame">
       <div className="preview-controls">
-        <button type="button" onClick={resetView} title="Reset View">
+        <button type="button" onClick={resetView} title={t('preview.resetView')}>
           <RotateCcw size={15} />
-          <span>Reset</span>
+          <span>{t('common.reset')}</span>
         </button>
-        <button type="button" onClick={fitToContent} title="Fit To Content">
+        <button type="button" onClick={fitToContent} title={t('preview.fitToContent')}>
           <Maximize2 size={15} />
-        <span>Fit</span>
+        <span>{t('common.fit')}</span>
         </button>
         <span>{Math.round(view.zoom * 100)}%</span>
         {lastEvent && <span className="last-event-pill">{lastEvent}</span>}
@@ -2643,6 +2708,7 @@ function TimelineTransport({
   onFilterChange: (value: TimelineKeyFilter) => void;
   onSearchChange: (value: string) => void;
 }) {
+  const { t } = useI18n();
   const sliderMax = Math.max(duration, currentTime, 1);
   const durationInput = currentAnimation?.duration ?? duration;
 
@@ -2650,57 +2716,57 @@ function TimelineTransport({
     <section className="timeline-transport">
       <div className="timeline-control-grid">
         <label className="compact-field">
-          <span>Animation</span>
+          <span>{t('inspector.animation')}</span>
           <select value={currentAnimationName} onChange={(event) => onAnimationChange(event.target.value)}>
-            <option value="">No animation</option>
+            <option value="">{t('timeline.noAnimation')}</option>
             {animations.map((animation) => <option key={animation.name} value={animation.name}>{animation.name}</option>)}
           </select>
         </label>
         <label className="compact-field">
-          <span>Current</span>
+          <span>{t('timeline.currentTime')}</span>
           <input type="number" min={0} step={snapStep} value={round(currentTime)} onChange={(event) => onTimeChange(toNumber(event.target.value, currentTime))} />
         </label>
         <label className="compact-field">
-          <span>Duration</span>
+          <span>{t('timeline.duration')}</span>
           <input type="number" min={0} step={snapStep} value={round(durationInput)} onChange={(event) => onDurationChange(toNumber(event.target.value, durationInput))} disabled={!currentAnimation} />
         </label>
         <label className="compact-field">
-          <span>Speed</span>
+          <span>{t('timeline.speed')}</span>
           <input type="number" min={0} step={0.1} value={round(playbackSpeed)} onChange={(event) => onPlaybackSpeedChange(toNumber(event.target.value, playbackSpeed))} />
         </label>
         <label className="compact-field">
-          <span>Filter</span>
+          <span>{t('timeline.filter')}</span>
           <select value={timelineFilter} onChange={(event) => onFilterChange(event.target.value as TimelineKeyFilter)}>
-            <option value="all">All</option>
-            <option value="bone">Bone</option>
-            <option value="deform">Deform</option>
-            <option value="attachment">Attachment</option>
-            <option value="drawOrder">Draw Order</option>
-            <option value="slotColor">Slot Color</option>
-            <option value="event">Event</option>
+            <option value="all">{t('timeline.all')}</option>
+            <option value="bone">{t('timeline.bone')}</option>
+            <option value="deform">{t('timeline.deform')}</option>
+            <option value="attachment">{t('timeline.attachment')}</option>
+            <option value="drawOrder">{t('timeline.drawOrder')}</option>
+            <option value="slotColor">{t('timeline.slotColor')}</option>
+            <option value="event">{t('timeline.event')}</option>
           </select>
         </label>
         <label className="compact-field">
-          <span>Search</span>
+          <span>{t('common.search')}</span>
           <input type="search" value={timelineSearch} onChange={(event) => onSearchChange(event.target.value)} />
         </label>
       </div>
 
       <div className="timeline-scrubber">
-        <button type="button" onClick={() => onTimeChange(0)}>Home</button>
+        <button type="button" onClick={() => onTimeChange(0)}>{t('common.home')}</button>
         <input type="range" min={0} max={sliderMax} step={snapStep} value={Math.min(currentTime, sliderMax)} onChange={(event) => onTimeChange(toNumber(event.target.value, currentTime))} />
-        <button type="button" onClick={() => onTimeChange(duration)}>End</button>
-        <button type="button" onClick={onPlayToggle}>{isPlaying ? 'Stop' : 'Play'}</button>
+        <button type="button" onClick={() => onTimeChange(duration)}>{t('common.end')}</button>
+        <button type="button" onClick={onPlayToggle}>{isPlaying ? t('common.stop') : t('common.play')}</button>
         <label className="mini-checkbox">
           <input type="checkbox" checked={loop} onChange={(event) => onLoopChange(event.target.checked)} disabled={!currentAnimation} />
-          <span>Loop</span>
+          <span>{t('common.loop')}</span>
         </label>
         <label className="mini-checkbox">
           <input type="checkbox" checked={snapEnabled} onChange={(event) => onSnapEnabledChange(event.target.checked)} />
-          <span>Snap</span>
+          <span>{t('timeline.snap')}</span>
         </label>
         <label className="snap-step-field">
-          <span>Step</span>
+          <span>{t('timeline.step')}</span>
           <input type="number" min={0.001} step={0.01} value={round(snapStep)} onChange={(event) => onSnapStepChange(toNumber(event.target.value, snapStep))} />
         </label>
       </div>
@@ -2727,18 +2793,19 @@ function TimelineKeyBrowser({
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <section className="timeline-key-browser">
       <div className="timeline-key-actions">
-        <strong>Keys</strong>
-        <span>{rows.length} visible</span>
-        <button type="button" onClick={onCopy} disabled={!selected}>Copy</button>
-        <button type="button" onClick={onPaste} disabled={!clipboard}>Paste</button>
-        <button type="button" onClick={onDuplicate} disabled={!selected}>Duplicate</button>
-        <button type="button" onClick={onDelete} disabled={!selected}>Delete</button>
+        <strong>{t('timeline.keys')}</strong>
+        <span>{t('timeline.visible', { count: rows.length })}</span>
+        <button type="button" onClick={onCopy} disabled={!selected}>{t('common.copy')}</button>
+        <button type="button" onClick={onPaste} disabled={!clipboard}>{t('common.paste')}</button>
+        <button type="button" onClick={onDuplicate} disabled={!selected}>{t('common.duplicate')}</button>
+        <button type="button" onClick={onDelete} disabled={!selected}>{t('common.delete')}</button>
       </div>
       {rows.length === 0 ? (
-        <p className="timeline-empty compact">No keys match the current filter.</p>
+        <p className="timeline-empty compact">{t('timeline.noKeys')}</p>
       ) : (
         <div className="timeline-key-list">
           {rows.map((row) => (
@@ -2779,11 +2846,12 @@ function SelectedTimelineKeyInspector({
   setKeyTime: (value: number) => void;
   updateSelectedKey: (updater: (key: ResolvedTimelineKey, draft: Suwol2DDocument) => void) => void;
 }) {
+  const { t } = useI18n();
   if (!resolved) {
     return (
       <section className="selected-key-inspector">
-        <h3>Selected Key</h3>
-        <p>Select a key from the timeline list to edit it.</p>
+        <h3>{t('timeline.selectedKey')}</h3>
+        <p>{t('timeline.selectKeyHint')}</p>
       </section>
     );
   }
@@ -2799,16 +2867,16 @@ function SelectedTimelineKeyInspector({
     <section className="selected-key-inspector">
       <div className="selected-key-header">
         <div>
-          <h3>Selected Key</h3>
+          <h3>{t('timeline.selectedKey')}</h3>
           <span>{selection.type} / {selection.target}</span>
         </div>
         <div className="timeline-actions">
-          <button type="button" onClick={() => { setTimelineMode(mode); setCurrentTime(keyTime); }}>Go To Key</button>
+          <button type="button" onClick={() => { setTimelineMode(mode); setCurrentTime(keyTime); }}>{t('timeline.goToKey')}</button>
         </div>
       </div>
 
       <div className="selected-key-fields">
-        <NumberField label="Time" value={keyTime} onChange={setKeyTime} />
+        <NumberField label={t('toolbar.time')} value={keyTime} onChange={setKeyTime} />
         {selection.type === 'boneTranslate' && (
           <>
             <NumberField label="X" value={(key as Suwol2DTranslateKey).x} onChange={(value) => setNumber('x', value)} />
@@ -3694,7 +3762,7 @@ function EventTimelineEditor({
 function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label className="field-row">
-      <span>{label}</span>
+      <span>{useLocalizedLabel(label)}</span>
       <input type="text" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
@@ -3703,7 +3771,7 @@ function TextField({ label, value, onChange }: { label: string; value: string; o
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return (
     <label className="field-row">
-      <span>{label}</span>
+      <span>{useLocalizedLabel(label)}</span>
       <input type="number" value={round(value)} step={0.05} onChange={(event) => onChange(toNumber(event.target.value, value))} />
     </label>
   );
@@ -3724,12 +3792,13 @@ function SelectField({
   options: string[];
   onChange: (value: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <label className="field-row">
-      <span>{label}</span>
+      <span>{useLocalizedLabel(label)}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
-          <option key={option || 'none'} value={option}>{option || 'None'}</option>
+          <option key={option || 'none'} value={option}>{option || t('common.none')}</option>
         ))}
       </select>
     </label>
@@ -3739,10 +3808,45 @@ function SelectField({
 function ReadonlyRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="field-row readonly-row">
-      <span>{label}</span>
+      <span>{useLocalizedLabel(label)}</span>
       <strong>{value}</strong>
     </div>
   );
+}
+
+function useLocalizedLabel(label: string): string {
+  const { t } = useI18n();
+  const keyByLabel: Record<string, TranslationKey> = {
+    Name: 'inspector.name',
+    Path: 'inspector.path',
+    Size: 'inspector.size',
+    Parent: 'inspector.parent',
+    X: 'inspector.x',
+    Y: 'inspector.y',
+    Rotation: 'inspector.rotation',
+    'Scale X': 'inspector.scaleX',
+    'Scale Y': 'inspector.scaleY',
+    Length: 'inspector.length',
+    Bone: 'inspector.bone',
+    Attachment: 'inspector.attachment',
+    'Draw Order': 'inspector.drawOrder',
+    Active: 'common.active',
+    Product: 'about.product',
+    Version: 'about.version',
+    Format: 'about.format',
+    Supported: 'about.supported',
+    License: 'about.license',
+    Docs: 'about.docs',
+    Time: 'toolbar.time',
+    Current: 'timeline.currentTime',
+    Duration: 'timeline.duration',
+    Speed: 'timeline.speed',
+    Filter: 'timeline.filter',
+    Machine: 'panel.stateMachines',
+    Initial: 'common.start'
+  };
+  const key = keyByLabel[label];
+  return key ? t(key) : label;
 }
 
 function MeshAttachmentFields({

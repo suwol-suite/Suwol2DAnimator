@@ -1,6 +1,10 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { registerProjectIpc } from './ipc/project-ipc';
+import { defaultAppSettings, normalizeAppSettings, type AppSettings } from '../shared/app-settings';
+import { createTranslator } from '../shared/i18n/translate';
+import { normalizeLocale } from '../shared/i18n/locale-manifest';
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -53,16 +57,28 @@ app.whenReady().then(() => {
 });
 
 function registerAppIpc(): void {
-  ipcMain.handle('app:confirm-unsaved-changes', async (_event, projectName: string) => {
+  ipcMain.handle('app:get-settings', async (): Promise<AppSettings> => {
+    return readAppSettings();
+  });
+
+  ipcMain.handle('app:save-settings', async (_event, settings: AppSettings): Promise<AppSettings> => {
+    const normalized = normalizeAppSettings(settings);
+    await writeAppSettings(normalized);
+    return normalized;
+  });
+
+  ipcMain.handle('app:confirm-unsaved-changes', async (_event, projectName: string, locale?: string) => {
     const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const t = createTranslator(normalizeLocale(locale));
+    const safeProjectName = projectName || t('dialog.thisProject');
     const result = await dialog.showMessageBox(window, {
       type: 'warning',
-      buttons: ['Save', 'Discard', 'Cancel'],
+      buttons: [t('common.save'), t('common.discard'), t('common.cancel')],
       defaultId: 0,
       cancelId: 2,
-      title: 'Unsaved Changes',
-      message: `${projectName || 'This project'} has unsaved changes.`,
-      detail: 'Save before continuing, discard the changes, or cancel the action.'
+      title: t('dialog.unsavedTitle'),
+      message: t('dialog.unsavedMessage', { projectName: safeProjectName }),
+      detail: t('dialog.unsavedDetail')
     });
 
     return ['save', 'discard', 'cancel'][result.response] ?? 'cancel';
@@ -71,6 +87,30 @@ function registerAppIpc(): void {
   ipcMain.handle('app:force-close', (event) => {
     BrowserWindow.fromWebContents(event.sender)?.destroy();
   });
+}
+
+async function readAppSettings(): Promise<AppSettings> {
+  const settingsPath = getAppSettingsPath();
+  try {
+    const raw = await readFile(settingsPath, 'utf8');
+    return normalizeAppSettings(JSON.parse(raw));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return defaultAppSettings;
+    }
+
+    throw error;
+  }
+}
+
+async function writeAppSettings(settings: AppSettings): Promise<void> {
+  const settingsPath = getAppSettingsPath();
+  await mkdir(dirname(settingsPath), { recursive: true });
+  await writeFile(settingsPath, `${JSON.stringify(normalizeAppSettings(settings), null, 2)}\n`, 'utf8');
+}
+
+function getAppSettingsPath(): string {
+  return join(app.getPath('userData'), 'settings.json');
 }
 
 app.on('window-all-closed', () => {

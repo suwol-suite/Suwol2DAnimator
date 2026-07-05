@@ -394,6 +394,7 @@ async function validateReleaseReadinessMetadata() {
   assert.equal(unityPackage.version, suwolReleaseInfo.unityPackageVersion, 'Unity package version should match release info.');
   assert.equal(rootPackage.version, unityPackage.version, 'Electron and Unity package versions should match.');
   assert.equal(unityPackage.unity, '6000.0', 'Unity minimum version should be 6000.0 for v12.');
+  assert.ok(rootPackage.scripts?.['release:check']?.includes('verify:locales'), 'release:check should include verify:locales.');
 
   for (const scriptName of [
     'icons:generate',
@@ -402,6 +403,7 @@ async function validateReleaseReadinessMetadata() {
     'dist:win:portable',
     'dist:win:nsis',
     'dist:linux:zip',
+    'verify:locales',
     'verify:unity:release',
     'release:check',
     'release:win',
@@ -432,11 +434,21 @@ async function validateReleaseReadinessMetadata() {
     'docs/manual-qa-dogfooding-v13.md',
     'docs/manual-qa-results-v13.md',
     'docs/hotfix-candidates-0.12.1.md',
+    'docs/localization-i18n-v15.md',
+    'src/shared/i18n/types.ts',
+    'src/shared/i18n/locales.ts',
+    'src/shared/i18n/translate.ts',
+    'src/shared/i18n/locale-manifest.ts',
+    'src/shared/i18n/locales/ko.json',
+    'src/shared/i18n/locales/en.json',
+    'src/renderer/src/i18n/I18nProvider.tsx',
+    'src/renderer/src/i18n/useI18n.ts',
     'unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md',
     'scripts/generate-icons.mjs',
     'scripts/create-checksums.mjs',
     'scripts/zip-unity-package.mjs',
-    'scripts/smoke-packaged-app.mjs'
+    'scripts/smoke-packaged-app.mjs',
+    'scripts/verify-locales.mjs'
   ]) {
     await access(join(repoRoot, requiredFile));
   }
@@ -446,6 +458,8 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(rootReadme.includes('npm.cmd run dist:linux:zip'), 'README should document Linux ZIP build command.');
   assert.ok(rootReadme.includes('Actions > Release Linux ZIP'), 'README should document the Linux ZIP GitHub Actions workflow.');
   assert.ok(rootReadme.includes('Suwol 2D Animator-0.12.0-linux-x64.zip'), 'README should document the Linux ZIP artifact name.');
+  assert.ok(rootReadme.includes('npm.cmd run verify:locales'), 'README should document locale verification command.');
+  assert.ok(rootReadme.includes('docs/localization-i18n-v15.md'), 'README should link v15 localization docs.');
   assert.ok(rootReadme.includes('npm.cmd run release:unity-package'), 'README should document Unity package zip command.');
   assert.ok(rootReadme.includes('docs/manual-qa-dogfooding-v13.md'), 'README should link v13 manual QA docs.');
   assert.ok(releaseChecklist.includes('.github/workflows/release-linux-zip.yml'), 'Release checklist should include Linux ZIP workflow checks.');
