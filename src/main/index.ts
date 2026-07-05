@@ -4,7 +4,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { registerProjectIpc } from './ipc/project-ipc';
 import { defaultAppSettings, normalizeAppSettings, type AppSettings } from '../shared/app-settings';
 import { createTranslator } from '../shared/i18n/translate';
-import { normalizeLocale } from '../shared/i18n/locale-manifest';
+import { fallbackLocale, normalizeLocale } from '../shared/i18n/locale-manifest';
+import { configureApplicationMenu } from './menu';
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -43,10 +44,11 @@ function createMainWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setAppUserModelId('com.suwol.suwol2danimator');
   registerProjectIpc();
   registerAppIpc();
+  configureApplicationMenu((await readAppSettings()).locale);
   createMainWindow();
 
   app.on('activate', () => {
@@ -64,6 +66,7 @@ function registerAppIpc(): void {
   ipcMain.handle('app:save-settings', async (_event, settings: AppSettings): Promise<AppSettings> => {
     const normalized = normalizeAppSettings(settings);
     await writeAppSettings(normalized);
+    configureApplicationMenu(normalized.locale);
     return normalized;
   });
 
@@ -96,11 +99,24 @@ async function readAppSettings(): Promise<AppSettings> {
     return normalizeAppSettings(JSON.parse(raw));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return defaultAppSettings;
+      return detectInitialAppSettings();
     }
 
     throw error;
   }
+}
+
+function detectInitialAppSettings(): AppSettings {
+  const osLocale = app.getLocale().toLowerCase();
+  if (osLocale === 'ko' || osLocale.startsWith('ko-')) {
+    return { locale: 'ko' };
+  }
+
+  if (!osLocale) {
+    return defaultAppSettings;
+  }
+
+  return { locale: fallbackLocale };
 }
 
 async function writeAppSettings(settings: AppSettings): Promise<void> {

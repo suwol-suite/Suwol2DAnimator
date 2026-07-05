@@ -4,7 +4,7 @@ export const defaultLocale: LocaleCode = 'ko';
 export const fallbackLocale: LocaleCode = 'en';
 
 export const supportedLocales = [
-  { code: 'ko', label: '한국어', nativeLabel: '한국어' },
+  { code: 'ko', label: 'Korean', nativeLabel: '한국어' },
   { code: 'en', label: 'English', nativeLabel: 'English' }
 ] as const;
 

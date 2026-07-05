@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Suwol 2D Animator icon">
-  <rect width="512" height="512" rx="96" fill="#111820"/>
-  <circle cx="256" cy="256" r="168" fill="#1fb8a6"/>
-  <circle cx="312" cy="204" r="132" fill="#111820"/>
-  <path d="M142 330c68 72 179 78 254 14" fill="none" stroke="#f2b84b" stroke-width="42" stroke-linecap="round"/>
-  <circle cx="190" cy="214" r="30" fill="#f2b84b"/>
-  <circle cx="338" cy="314" r="24" fill="#8fd8cf"/>
-</svg>

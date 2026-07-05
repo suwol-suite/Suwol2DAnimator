@@ -380,6 +380,7 @@ async function validateReleaseReadinessMetadata() {
   const unityPackage = JSON.parse(await readFile(join(repoRoot, 'unity', 'com.suwol.suwol2d', 'package.json'), 'utf8'));
   const builderConfig = await readFile(join(repoRoot, 'electron-builder.yml'), 'utf8');
   const linuxZipWorkflow = await readFile(join(repoRoot, '.github', 'workflows', 'release-linux-zip.yml'), 'utf8');
+  const linuxReleaseWorkflow = await readFile(join(repoRoot, '.github', 'workflows', 'release-linux.yml'), 'utf8');
   const rootReadme = await readFile(join(repoRoot, 'README.md'), 'utf8');
   const releaseChecklist = await readFile(join(repoRoot, 'docs', 'release-checklist-v12.md'), 'utf8');
   const packagingReadiness = await readFile(join(repoRoot, 'docs', 'packaging-release-readiness-v12.md'), 'utf8');
@@ -402,6 +403,7 @@ async function validateReleaseReadinessMetadata() {
     'dist:win:dir',
     'dist:win:portable',
     'dist:win:nsis',
+    'dist:linux',
     'dist:linux:zip',
     'verify:locales',
     'verify:unity:release',
@@ -420,15 +422,19 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(builderConfig.includes('build/icon.ico'), 'electron-builder should use build/icon.ico.');
   assert.ok(builderConfig.includes('unity/com.suwol.suwol2d'), 'electron-builder should include Unity package resources.');
   assert.ok(builderConfig.includes('linux:'), 'electron-builder should include Linux packaging settings.');
+  assert.ok(builderConfig.includes('target: AppImage'), 'electron-builder Linux target should include AppImage.');
+  assert.ok(builderConfig.includes('target: tar.gz'), 'electron-builder Linux target should include tar.gz.');
   assert.ok(builderConfig.includes('target: zip'), 'electron-builder Linux target should be zip.');
   assert.ok(builderConfig.includes('arch:'), 'electron-builder Linux target should declare architectures.');
   assert.ok(builderConfig.includes('- x64'), 'electron-builder Linux target should include x64.');
   assert.ok(builderConfig.includes('${productName}-${version}-linux-${arch}.${ext}'), 'electron-builder should name Linux ZIP artifacts consistently.');
 
   for (const requiredFile of [
+    '.github/workflows/release-linux.yml',
     '.github/workflows/release-linux-zip.yml',
     'LICENSE',
     'THIRD-PARTY-NOTICES.md',
+    'suwol-release-public-key.asc',
     'docs/release-checklist-v12.md',
     'docs/packaging-release-readiness-v12.md',
     'docs/manual-qa-dogfooding-v13.md',
@@ -455,18 +461,29 @@ async function validateReleaseReadinessMetadata() {
 
   assert.ok(rootReadme.includes('Current release readiness version: `0.12.0`'), 'README should mention v12 release version.');
   assert.ok(rootReadme.includes('npm.cmd run dist:win:portable'), 'README should document portable build command.');
+  assert.ok(rootReadme.includes('npm.cmd run dist:linux'), 'README should document Linux AppImage/tar.gz build command.');
   assert.ok(rootReadme.includes('npm.cmd run dist:linux:zip'), 'README should document Linux ZIP build command.');
   assert.ok(rootReadme.includes('Actions > Release Linux ZIP'), 'README should document the Linux ZIP GitHub Actions workflow.');
+  assert.ok(rootReadme.includes('Actions > Release Linux'), 'README should document the signed Linux GitHub Actions workflow.');
   assert.ok(rootReadme.includes('Suwol 2D Animator-0.12.0-linux-x64.zip'), 'README should document the Linux ZIP artifact name.');
+  assert.ok(rootReadme.includes('suwol-release-public-key.asc'), 'README should document the Suwol release public key.');
+  assert.ok(rootReadme.includes('gpg --verify checksums.txt.asc checksums.txt'), 'README should document GPG checksum signature verification.');
+  assert.ok(rootReadme.includes('sha256sum -c checksums.txt'), 'README should document Linux SHA-256 verification.');
+  assert.ok(rootReadme.includes('shasum -a 256 -c checksums.txt'), 'README should document macOS SHA-256 verification.');
   assert.ok(rootReadme.includes('npm.cmd run verify:locales'), 'README should document locale verification command.');
   assert.ok(rootReadme.includes('docs/localization-i18n-v15.md'), 'README should link v15 localization docs.');
   assert.ok(rootReadme.includes('npm.cmd run release:unity-package'), 'README should document Unity package zip command.');
   assert.ok(rootReadme.includes('docs/manual-qa-dogfooding-v13.md'), 'README should link v13 manual QA docs.');
   assert.ok(releaseChecklist.includes('.github/workflows/release-linux-zip.yml'), 'Release checklist should include Linux ZIP workflow checks.');
+  assert.ok(releaseChecklist.includes('.github/workflows/release-linux.yml'), 'Release checklist should include signed Linux release workflow checks.');
+  assert.ok(releaseChecklist.includes('checksums.txt.asc'), 'Release checklist should include signed checksum checks.');
   assert.ok(releaseChecklist.includes('checksums-linux-x64.txt'), 'Release checklist should include Linux checksum checks.');
   assert.ok(packagingReadiness.includes('GitHub Actions Linux ZIP'), 'Packaging readiness docs should document GitHub Actions Linux ZIP.');
+  assert.ok(packagingReadiness.includes('GitHub Actions Signed Linux Release'), 'Packaging readiness docs should document signed Linux release.');
   assert.ok(packagingReadiness.includes('electron-builder --linux zip --x64 --publish never'), 'Packaging readiness docs should document the Linux ZIP build command.');
+  assert.ok(packagingReadiness.includes('electron-builder --linux AppImage tar.gz --x64 --publish never'), 'Packaging readiness docs should document the signed Linux build command.');
   assert.ok(manualQaDogfooding.includes('Linux ZIP Workflow QA'), 'Manual QA docs should include Linux ZIP workflow QA.');
+  assert.ok(manualQaDogfooding.includes('Signed Linux Release QA'), 'Manual QA docs should include signed Linux release QA.');
   assert.ok(manualQaDogfooding.includes('checksums-linux-x64.txt'), 'Manual QA docs should include Linux checksum checks.');
   for (const workflowMarker of [
     'name: Release Linux ZIP',
@@ -492,6 +509,37 @@ async function validateReleaseReadinessMetadata() {
     assert.ok(linuxZipWorkflow.includes(workflowMarker), `Linux ZIP workflow is missing marker: ${workflowMarker}`);
   }
   assert.ok(!linuxZipWorkflow.includes('verify:unity'), 'Linux ZIP workflow should not run Unity smoke checks.');
+  for (const workflowMarker of [
+    'name: Release Linux',
+    'push:',
+    'tags:',
+    'v*',
+    'permissions:',
+    'contents: write',
+    'runs-on: ubuntu-latest',
+    'actions/checkout@v4',
+    'actions/setup-node@v4',
+    'node-version: 22',
+    'npm ci',
+    'npm run typecheck --if-present',
+    'npm run lint --if-present',
+    'npm test --if-present',
+    'npm run dist:linux',
+    'GPG_PRIVATE_KEY_B64',
+    'GPG_PASSPHRASE',
+    'gpg --batch --import private.asc',
+    'checksums.txt',
+    'checksums.txt.asc',
+    'gpg --verify checksums.txt.asc checksums.txt',
+    'sha256sum -c checksums.txt',
+    'softprops/action-gh-release@v2',
+    'suwol-release-public-key.asc'
+  ]) {
+    assert.ok(linuxReleaseWorkflow.includes(workflowMarker), `Linux release workflow is missing marker: ${workflowMarker}`);
+  }
+  assert.ok(!linuxReleaseWorkflow.includes('verify:unity'), 'Linux release workflow should not run Unity smoke checks.');
+  assert.ok(!linuxReleaseWorkflow.includes('suwol-release-private-key.asc'), 'Linux release workflow should not reference a committed private key file.');
+  assert.ok(!linuxReleaseWorkflow.includes('suwol-release-revocation.asc'), 'Linux release workflow should not reference a committed revocation file.');
   assert.ok(unityDocsIndex.includes('Timeline Usability v11'), 'Unity docs index should list v11 sample.');
   assert.ok(unityDocsIndex.includes('packaging-release-readiness-v12.md'), 'Unity docs index should link v12 docs.');
   assert.ok(unityPackage.samples.some((sample) => sample.path === 'Samples~/TimelineUsabilityV11'), 'Unity package should list v11 sample.');

@@ -22,6 +22,7 @@
     "dist:win:dir": "electron-builder --win dir",
     "dist:win:portable": "electron-builder --win portable",
     "dist:win:nsis": "electron-builder --win nsis",
+    "dist:linux": "electron-builder --linux AppImage tar.gz --x64 --publish never",
     "dist:linux:zip": "electron-builder --linux zip --x64 --publish never",
     "release:check": "npm.cmd run typecheck && npm.cmd run build && npm.cmd audit && npm.cmd run verify:format && npm.cmd run verify:locales && npm.cmd run verify:unity",
     "release:win": "npm.cmd run release:check && npm.cmd run dist:win",

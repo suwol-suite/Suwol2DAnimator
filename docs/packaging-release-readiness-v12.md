@@ -1,15 +1,17 @@
 # Packaging / Release Readiness v12
 
 v12 prepares the Electron editor and Unity UPM package for local Windows release
-builds, and adds a GitHub Actions path for Linux x64 ZIP distribution. It does
-not add new animation features.
+builds, and adds GitHub Actions paths for Linux x64 ZIP distribution and signed
+Linux release uploads. It does not add new animation features.
 
 ## Goals
 
 - Align Electron app and Unity package versions at `0.12.0`.
 - Add Windows packaging through `electron-builder`.
 - Add Linux x64 ZIP packaging through `electron-builder`.
+- Add Linux AppImage and tar.gz packaging through `electron-builder`.
 - Add GitHub Actions workflow for Linux ZIP artifacts and tag release uploads.
+- Add GitHub Actions workflow for GPG-signed Linux release artifacts.
 - Generate local brand icons and Windows ICO assets.
 - Include Unity UPM package and docs as packaged app resources.
 - Add release verification, checksum, Unity package zip, and packaged smoke scripts.
@@ -30,7 +32,7 @@ Important settings:
 - output: `release/`
 - Windows icon: `build/icon.ico`
 - Windows targets: `dir`, `portable`, `nsis`
-- Linux target: `zip` for `x64`
+- Linux targets: `AppImage`, `tar.gz`, and `zip` for `x64`
 - bundled resources: Unity UPM package, docs, README, LICENSE, THIRD-PARTY notices
 
 Commands:
@@ -41,6 +43,7 @@ npm.cmd run release:check
 npm.cmd run dist:win:dir
 npm.cmd run dist:win:portable
 npm.cmd run dist:win:nsis
+npm.cmd run dist:linux
 npm.cmd run dist:linux:zip
 npm.cmd run release:checksums
 ```
@@ -73,6 +76,39 @@ Unity smoke flow.
 
 No AppImage, deb, rpm, Snap, auto-updater, code-signing, or external deployment
 server is configured for the Linux ZIP path.
+
+## GitHub Actions Signed Linux Release
+
+Workflow:
+
+```text
+.github/workflows/release-linux.yml
+```
+
+Behavior:
+
+- Runs automatically on tag pushes matching `v*`.
+- Uses Node.js 22 and `npm ci`.
+- Runs `typecheck`, optional `lint`, and optional `test`.
+- Builds `electron-builder --linux AppImage tar.gz --x64 --publish never`.
+- Creates `release/checksums.txt` for Linux AppImage and tar.gz artifacts.
+- Imports the private signing key from `GPG_PRIVATE_KEY_B64`.
+- Signs the checksum manifest as `release/checksums.txt.asc`.
+- Imports `suwol-release-public-key.asc` and verifies the detached signature.
+- Runs `sha256sum -c checksums.txt`.
+- Uploads Linux artifacts, checksums, signature, and public key to the matching
+  GitHub Release.
+
+Required GitHub Secrets:
+
+```text
+GPG_PRIVATE_KEY_B64
+GPG_PASSPHRASE
+```
+
+The private key, revocation certificate, and passphrase must never be committed
+to the repository. The public key is intentionally committed as
+`suwol-release-public-key.asc`.
 
 ## Unity Package Distribution
 
@@ -114,8 +150,11 @@ release/
   Suwol 2D Animator-0.12.0-portable.exe
   Suwol 2D Animator Setup 0.12.0.exe
   Suwol 2D Animator-0.12.0-linux-x64.zip
+  Suwol 2D Animator-0.12.0-linux-x64.AppImage
+  Suwol 2D Animator-0.12.0-linux-x64.tar.gz
   com.suwol.suwol2d-0.12.0.zip
   checksums.txt
+  checksums.txt.asc
   checksums-linux-x64.txt
 ```
 
@@ -146,6 +185,11 @@ resources/unity/com.suwol.suwol2d
   code signing setup first.
 - If the Linux ZIP workflow fails during package upload, confirm the build
   produced `release/Suwol 2D Animator-0.12.0-linux-x64.zip`.
+- If the signed Linux release workflow fails during signing, confirm
+  `GPG_PRIVATE_KEY_B64` is base64-encoded armored private key text and
+  `GPG_PASSPHRASE` matches the key.
+- If signature verification fails, confirm `suwol-release-public-key.asc`
+  matches the private release key stored in GitHub Secrets.
 - If a manual workflow run should upload to a GitHub Release, set
   `upload_to_github_release` to `true` and ensure a matching release exists.
 - If localized UI text is missing in a packaged build, run

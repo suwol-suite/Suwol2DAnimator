@@ -61,3 +61,15 @@ release/checksums.txt
 - Windows SmartScreen/signing warnings may appear for local release artifacts; record them during interactive QA if seen.
 - No unsupported Spine compatibility claim was added during v13.
 - No `0.12.1` version bump was made.
+
+## v16 Localization/Menu Hotfix Check
+
+Date: 2026-07-06
+Build: `release/win-unpacked/Suwol 2D Animator.exe`
+
+| ID | Area | Scenario | Expected | Result | Status | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| V16-L10N-001 | Packaged app UI | Start with `locale: ko` | Language selector visible; toolbar, timeline buttons, inspector scale labels are Korean | Passed | PASS | CDP automation confirmed `언어`, `X 크기`, `Y 크기`, `이동 키 추가`, `회전 키 추가`, and sample dropdown. |
+| V16-L10N-002 | Packaged app UI | Switch to English | Major toolbar/timeline/inspector strings switch to English | Passed | PASS | CDP automation confirmed `Language`, `Scale X`, `Scale Y`, `Add Translate Key`, and `Add Rotate Key`. |
+| V16-L10N-003 | Settings persistence | Restart after English, then Korean | Selected language persists across restart | Passed | PASS | `userData/settings.json` changed to `en`, survived restart, then changed to `ko` and survived restart. |
+| V16-L10N-004 | Native menu visual readback | Programmatically read packaged native menu labels | Menu labels can be inspected as ko/en | Not readable by automation | SKIPPED | UI Automation and Win32 `GetMenu` returned no menu items for the Electron window in this environment. Code path uses `Menu.setApplicationMenu`, `menu.*` locale keys, rebuilds on locale save, and packaged build hides dev-only menu items via `app.isPackaged`. Manual visual confirmation is still recommended. |

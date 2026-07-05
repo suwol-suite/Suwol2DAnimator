@@ -11,10 +11,12 @@ not add animation features and does not change Unity Runtime behavior.
 - Use Korean as the default locale.
 - Use English as the fallback locale.
 - Store the selected language in the app-wide Electron settings file.
+- Localize the Electron native application menu and rebuild it when the app
+  language changes.
 - Keep translation files bundled with the renderer so packaged builds do not
   need runtime locale file path resolution.
 - Make validation, export, status, toolbar, panel, timeline, sample, settings,
-  and about messages translatable.
+  canvas, mesh, state machine, inspector, and about messages translatable.
 
 ## Locale Structure
 
@@ -44,10 +46,19 @@ fallback locale: en
 settings path: userData/settings.json
 ```
 
-If a stored locale is missing or unsupported, the app uses `ko`. If a key is
-missing in the active locale, the translator falls back to `en`. If the key is
-missing in both locales, the key itself is displayed and a console warning is
-emitted.
+Locale startup priority:
+
+```text
+1. userData/settings.json
+2. OS locale ko or ko-KR => ko
+3. fallback locale en
+```
+
+If settings are missing and OS locale detection is unavailable, the app uses
+`ko`. If a stored locale is missing or unsupported, the app uses `ko`. If a key
+is missing in the active locale, the translator falls back to `en`. If the key
+is missing in both locales, the key itself is displayed and a console warning
+is emitted.
 
 ## Translation Keys
 
@@ -59,13 +70,17 @@ common.*
 toolbar.*
 panel.*
 sample.*
+menu.*
 settings.*
+language.*
 status.*
 export.*
 validation.*
 timeline.*
 about.*
 inspector.*
+mesh.*
+stateMachine.*
 preview.*
 dialog.*
 ```
@@ -106,6 +121,10 @@ The Electron UI displays `t(issue.messageKey, issue.params)` when available.
 If a validation message is not mapped yet, it falls back to
 `validation.genericIssue` with the original debug message.
 
+Project data names, animation names, bone names, slot names, attachment names,
+state names, parameter names, and imported file names are user data. The app
+does not automatically translate those values.
+
 ## App Settings
 
 The renderer accesses settings only through preload IPC:
@@ -140,6 +159,9 @@ Packaged QA should confirm:
 - App starts in Korean by default.
 - Language can be changed to English.
 - UI updates without restart.
+- The native application menu follows the selected language.
+- Production packaged builds hide development-only menu items such as reload,
+  force reload, and developer tools.
 - The selected language persists after restart.
 - Validation, export/status, timeline, settings, and about messages follow the
   selected language.
@@ -178,6 +200,8 @@ and inspector localization is deferred.
 Out of scope:
 
 - Automatic translation
+- OS-owned file picker labels, OS security prompts, and platform shell text
+- Development overlays from Chromium, Electron, React, or Vite
 - External translation APIs or paid translation services
 - Server-hosted language packs
 - Unity Runtime feature changes

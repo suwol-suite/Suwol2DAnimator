@@ -43,6 +43,12 @@ win:
 
 linux:
   target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: tar.gz
+      arch:
+        - x64
     - target: zip
       arch:
         - x64

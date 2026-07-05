@@ -29,9 +29,13 @@ release/Suwol 2D Animator-0.12.0-portable.exe
 release/Suwol 2D Animator Setup 0.12.0.exe
 release/Suwol 2D Animator Setup 0.12.0.exe.blockmap
 release/Suwol 2D Animator-0.12.0-linux-x64.zip
+release/Suwol 2D Animator-0.12.0-linux-x64.AppImage
+release/Suwol 2D Animator-0.12.0-linux-x64.tar.gz
 release/com.suwol.suwol2d-0.12.0.zip
 release/checksums.txt
+release/checksums.txt.asc
 release/checksums-linux-x64.txt
+suwol-release-public-key.asc
 ```
 
 `checksums.txt` should list the portable executable, installer executable,
@@ -86,6 +90,38 @@ Confirm:
 - Tag-triggered run uploads ZIP and checksum files to the GitHub Release.
 - Workflow does not build AppImage, deb, rpm, Snap, updater metadata, or signing assets.
 - Workflow does not require `verify:unity`.
+
+## Signed Linux Release QA
+
+Workflow:
+
+```text
+.github/workflows/release-linux.yml
+```
+
+Confirm after pushing a release tag `v*`:
+
+- Workflow `Release Linux` succeeds.
+- GitHub Release includes Linux `.AppImage`.
+- GitHub Release includes Linux `.tar.gz`.
+- GitHub Release includes `checksums.txt`.
+- GitHub Release includes `checksums.txt.asc`.
+- GitHub Release includes `suwol-release-public-key.asc`.
+- Private key, revocation certificate, and passphrase are not present in the
+  repository or release assets.
+- Download all Linux release assets into one directory and run:
+
+```bash
+gpg --import suwol-release-public-key.asc
+gpg --verify checksums.txt.asc checksums.txt
+sha256sum -c checksums.txt
+```
+
+On macOS, use:
+
+```bash
+shasum -a 256 -c checksums.txt
+```
 
 ## Dogfood Workspace
 

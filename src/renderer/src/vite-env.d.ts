@@ -16,6 +16,7 @@ export interface ExportSuwol2DAssetResult {
 }
 
 export type UnsavedChangesChoice = 'save' | 'discard' | 'cancel';
+export type AppMenuCommand = 'newProject' | 'openProject' | 'saveProject' | 'exportProject' | 'quit' | 'undo' | 'redo';
 
 export interface SuwolPreloadApi {
   appKind: 'electron-editor';
@@ -42,6 +43,7 @@ export interface SuwolPreloadApi {
     saveAppSettings(settings: AppSettings): Promise<AppSettings>;
     confirmUnsavedChanges(projectName: string, locale?: LocaleCode): Promise<UnsavedChangesChoice>;
     forceClose(): Promise<void>;
+    onMenuCommand(callback: (command: AppMenuCommand) => void): () => void;
     onCloseRequest(callback: () => void): () => void;
   };
 }

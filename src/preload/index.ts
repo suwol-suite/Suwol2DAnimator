@@ -30,6 +30,11 @@ contextBridge.exposeInMainWorld('suwol', {
     saveAppSettings: (settings: unknown) => ipcRenderer.invoke('app:save-settings', settings),
     confirmUnsavedChanges: (projectName: string, locale?: string) => ipcRenderer.invoke('app:confirm-unsaved-changes', projectName, locale),
     forceClose: () => ipcRenderer.invoke('app:force-close'),
+    onMenuCommand: (callback: (command: string) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, command: string) => callback(command);
+      ipcRenderer.on('app:menu-command', listener);
+      return () => ipcRenderer.removeListener('app:menu-command', listener);
+    },
     onCloseRequest: (callback: () => void) => {
       const listener = () => callback();
       ipcRenderer.on('app:request-close', listener);

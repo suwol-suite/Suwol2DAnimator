@@ -41,6 +41,7 @@ npm.cmd run release:check
 npm.cmd run dist:win:dir
 npm.cmd run dist:win:portable
 npm.cmd run dist:win:nsis
+npm.cmd run dist:linux
 npm.cmd run dist:linux:zip
 npm.cmd run release:unity-package
 npm.cmd run release:checksums
@@ -56,6 +57,19 @@ npm.cmd run release:checksums
 - [ ] Tag-triggered run uploads ZIP and checksum files to the GitHub Release.
 - [ ] Workflow builds only ZIP, not AppImage, deb, rpm, Snap, or updater assets.
 - [ ] Unity smoke checks are not required in this Linux ZIP workflow.
+
+## Signed Linux Release GitHub Actions
+
+- [ ] `.github/workflows/release-linux.yml` exists.
+- [ ] Workflow `Release Linux` runs on tag push `v*`.
+- [ ] Workflow builds Linux AppImage and tar.gz artifacts.
+- [ ] Workflow creates `release/checksums.txt`.
+- [ ] Workflow creates detached GPG signature `release/checksums.txt.asc`.
+- [ ] Workflow imports `suwol-release-public-key.asc` and verifies the signature.
+- [ ] Workflow runs `sha256sum -c checksums.txt`.
+- [ ] GitHub Release upload includes AppImage, tar.gz, `checksums.txt`, `checksums.txt.asc`, and `suwol-release-public-key.asc`.
+- [ ] `GPG_PRIVATE_KEY_B64` and `GPG_PASSPHRASE` are GitHub Secrets, not repository files.
+- [ ] No private key, revocation certificate, or passphrase is committed.
 
 ## Packaged App Smoke
 
@@ -86,8 +100,12 @@ npm.cmd run release:checksums
 - [ ] Optional NSIS setup `.exe`
 - [ ] Linux x64 `.zip`
 - [ ] `release/checksums-linux-x64.txt`
-- [ ] `release/com.suwol.suwol2d-0.12.0.zip`
+- [ ] Linux x64 `.AppImage`
+- [ ] Linux x64 `.tar.gz`
 - [ ] `release/checksums.txt`
+- [ ] `release/checksums.txt.asc`
+- [ ] `suwol-release-public-key.asc`
+- [ ] `release/com.suwol.suwol2d-0.12.0.zip`
 - [ ] No temporary Unity smoke project remains.
 - [ ] No `_unity-package-staging` folder remains.
 
@@ -97,4 +115,4 @@ npm.cmd run release:checksums
 - Do not claim Spine compatibility.
 - Do not create a separate Unity project repository.
 - Keep Electron editor and Unity UPM package in this repository.
-- Keep Linux distribution scoped to ZIP until another target is explicitly planned.
+- Keep Linux release signing secrets outside this repository.

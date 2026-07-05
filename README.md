@@ -41,11 +41,11 @@ under `unity/com.suwol.suwol2d/`.
 - Single-layer animation mixing
 - Simple bool/trigger state machines
 - Timeline key editing, snap, copy/paste, duplicate, filters, and explicit duration
+- Canvas vertex selection/move plus weight and deform brush editing
 
 Out of scope for this release: Spine import/export/runtime compatibility,
-clipping, atlas packing, brush weight/deform painting, animation layers, blend
-trees, additive animation, telemetry, auto-updater, and licensing/payment
-systems.
+clipping, atlas packing, animation layers, blend trees, additive animation,
+telemetry, auto-updater, and licensing/payment systems.
 
 ## Install And Run
 
@@ -106,7 +106,7 @@ npm.cmd run smoke:packaged
 
 ## Linux ZIP Distribution
 
-GitHub Actions builds the Linux PC ZIP package with:
+GitHub Actions keeps a lightweight Linux PC ZIP package workflow with:
 
 ```text
 Actions > Release Linux ZIP
@@ -137,8 +137,64 @@ Local Linux ZIP build command:
 npm.cmd run dist:linux:zip
 ```
 
-The Linux workflow intentionally builds only the ZIP target. It does not build
+The ZIP workflow intentionally builds only the ZIP target. It does not build
 AppImage, deb, rpm, Snap, auto-updater metadata, or code-signing assets.
+
+## Signed Linux Release
+
+GitHub Actions builds the signed Linux release bundle with:
+
+```text
+Actions > Release Linux
+```
+
+The workflow runs automatically when a `v*` tag is pushed. It builds Linux
+AppImage and tar.gz artifacts, writes `release/checksums.txt`, creates the GPG
+detached signature `release/checksums.txt.asc`, verifies the signature with the
+repository public key, verifies SHA-256 checksums, then uploads the artifacts to
+the matching GitHub Release.
+
+Required GitHub repository or organization secrets:
+
+```text
+GPG_PRIVATE_KEY_B64
+GPG_PASSPHRASE
+```
+
+The public verification key is stored in this repository:
+
+```text
+suwol-release-public-key.asc
+```
+
+Do not commit private keys, revocation certificates, or passphrases.
+
+Local Linux AppImage/tar.gz build command:
+
+```powershell
+npm.cmd run dist:linux
+```
+
+To verify a downloaded signed release bundle, put the Linux artifacts,
+`checksums.txt`, `checksums.txt.asc`, and `suwol-release-public-key.asc` in the
+same directory. Import the public key, verify the signed checksum manifest, then
+verify the downloaded files:
+
+```bash
+gpg --import suwol-release-public-key.asc
+gpg --verify checksums.txt.asc checksums.txt
+sha256sum -c checksums.txt
+```
+
+On macOS, use `shasum` for the checksum step:
+
+```bash
+shasum -a 256 -c checksums.txt
+```
+
+The GPG step confirms that `checksums.txt` was signed by the Suwol release key.
+The checksum step confirms that the downloaded artifacts match the signed
+SHA-256 entries.
 
 ## Localization
 
@@ -149,6 +205,16 @@ default locale: ko
 fallback locale: en
 settings: userData/settings.json
 ```
+
+Startup locale priority is saved settings, then Korean OS locale detection,
+then English fallback. If OS locale detection is unavailable and no settings
+exist, the editor starts in Korean.
+
+The in-app UI and Electron native menu follow the selected app language.
+Production packaged builds hide development-only reload and developer tools
+menu items. User-authored project data names are not auto-translated, and
+OS-owned file dialogs/security prompts remain outside the app localization
+scope.
 
 Verify locale files:
 
@@ -211,6 +277,7 @@ release/com.suwol.suwol2d-0.12.0.zip
 - `docs/manual-qa-results-v13.md`
 - `docs/hotfix-candidates-0.12.1.md`
 - `docs/localization-i18n-v15.md`
+- `docs/brush-editing-canvas-direct-editing-v16.md`
 - `unity/com.suwol.suwol2d/Documentation~/index.md`
 - `unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md`
 

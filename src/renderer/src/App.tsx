@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent, ReactNode, WheelEvent as ReactWheelEvent } from 'react';
+import type { Dispatch, PointerEvent as ReactPointerEvent, ReactNode, SetStateAction, WheelEvent as ReactWheelEvent } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -122,6 +122,26 @@ import {
 } from './features/animation/timeline-keys';
 import type { TimelineClipboard, TimelineKeyFilter, TimelineKeyRow, TimelineKeySelection, ResolvedTimelineKey } from './features/animation/timeline-keys';
 import {
+  canvasToolModes,
+  defaultCanvasBrushSettings,
+  normalizeCanvasVertexSelection,
+  sanitizeBrushRadius,
+  sanitizeBrushStrength,
+  updateCanvasVertexSelection,
+  type CanvasBrushSettings,
+  type CanvasToolMode,
+  type CanvasVertexSelection
+} from './features/canvas/canvas-tools';
+import { collectBrushVertexFalloffs, hitTestMeshVertex, type CanvasMeshTarget } from './features/canvas/canvas-hit-test';
+import {
+  canvasToAttachmentLocal,
+  getAttachmentCanvasTransform,
+  type AttachmentCanvasTransform,
+  type Point2D
+} from './features/canvas/canvas-transform';
+import { applyDeformBrush, getOrCreateDeformBrushKey } from './features/mesh/deform-brush';
+import { applyWeightBrush } from './features/mesh/weight-brush';
+import {
   createAnimationMixingStateMachineSampleDocument,
   createAnimationTimelinesSampleDocument,
   createDeformSampleDocument,
@@ -148,6 +168,7 @@ type Selection =
 
 type KeyKind = 'translate' | 'rotate' | 'scale';
 type TimelineMode = 'bone' | 'deform' | 'attachment' | 'drawOrder' | 'slotColor' | 'event';
+type RendererMenuCommand = 'newProject' | 'openProject' | 'saveProject' | 'exportProject' | 'quit' | 'undo' | 'redo';
 
 interface EditorHistory {
   undo: Suwol2DProjectFile[];
@@ -192,6 +213,9 @@ export function App() {
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [snapStep, setSnapStep] = useState(defaultTimelineSnapStep);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [canvasTool, setCanvasTool] = useState<CanvasToolMode>('select');
+  const [canvasBrushSettings, setCanvasBrushSettings] = useState<CanvasBrushSettings>(defaultCanvasBrushSettings);
+  const [selectedCanvasVertices, setSelectedCanvasVertices] = useState<CanvasVertexSelection | null>(null);
   const [lastTimelineEvent, setLastTimelineEvent] = useState('');
   const [stateMachinePreview, setStateMachinePreview] = useState<StateMachinePreviewState>(() => createInitialStateMachinePreview(defaultProject.document));
   const [statusMessage, setStatusMessage] = useState<StatusMessage>({ key: 'status.ready' });
@@ -203,6 +227,7 @@ export function App() {
   const isDirtyRef = useRef(isDirty);
   const closeInProgressRef = useRef(false);
   const previousEventTimeRef = useRef(0);
+  const menuCommandRef = useRef<(command: RendererMenuCommand) => void>(() => undefined);
 
   const document = project.document;
   const skins = useMemo(() => getEffectiveSkins(document), [document]);
@@ -262,6 +287,8 @@ export function App() {
   useEffect(() => {
     isDirtyRef.current = isDirty;
   }, [isDirty]);
+
+  useEffect(() => window.suwol.app.onMenuCommand((command) => menuCommandRef.current(command)), []);
 
   useEffect(() => {
     globalThis.document.title = `${t('app.title')} - ${document.name || t('app.untitled')}${isDirty ? ' *' : ''}`;
@@ -399,6 +426,26 @@ export function App() {
       setActiveSkinName(skins.find((skin) => skin.name === defaultSkinName)?.name ?? skins[0]?.name ?? defaultSkinName);
     }
   }, [activeSkinName, skins]);
+
+  useEffect(() => {
+    if (!document.bones.some((bone) => bone.name === canvasBrushSettings.boneName)) {
+      setCanvasBrushSettings((current) => ({
+        ...current,
+        boneName: document.bones[0]?.name ?? ''
+      }));
+    }
+  }, [canvasBrushSettings.boneName, document.bones]);
+
+  useEffect(() => {
+    setSelectedCanvasVertices((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const attachment = findAttachmentForEdit(document, activeSkinName, current.attachment);
+      return normalizeCanvasVertexSelection(current, attachment?.type === 'mesh' ? attachment : undefined);
+    });
+  }, [activeSkinName, document]);
 
   function getScrubTime(value: number): number {
     const next = snapEnabled ? snapTime(value, safeSnapStep) : value;
@@ -907,7 +954,7 @@ export function App() {
     }
   }
 
-  function commitProjectChange(updater: (project: Suwol2DProjectFile) => void) {
+  function commitProjectChange(updater: (project: Suwol2DProjectFile) => void, trackHistory = true) {
     setProject((value) => {
       const nextProject = clone(value);
       updater(nextProject);
@@ -915,21 +962,23 @@ export function App() {
         return value;
       }
 
-      setHistory((current) => ({
-        undo: [...current.undo, clone(value)].slice(-maxHistoryEntries),
-        redo: []
-      }));
+      if (trackHistory) {
+        setHistory((current) => ({
+          undo: [...current.undo, clone(value)].slice(-maxHistoryEntries),
+          redo: []
+        }));
+      }
       setIsDirty(true);
       return nextProject;
     });
   }
 
-  function updateDocument(updater: (document: Suwol2DDocument) => void) {
+  function updateDocument(updater: (document: Suwol2DDocument) => void, trackHistory = true) {
     commitProjectChange((draft) => {
       updater(draft.document);
       ensureDefaultSkin(draft.document);
       syncTopLevelAttachmentsFromSkins(draft.document);
-    });
+    }, trackHistory);
   }
 
   function undo() {
@@ -1324,7 +1373,7 @@ export function App() {
 
   function addKey(kind: KeyKind) {
     if (!selectedBone || !currentAnimation) {
-      setStatus('Select a bone and animation before adding keys.');
+      setLocalizedStatus('status.selectBoneAndAnimationBeforeKeys');
       return;
     }
 
@@ -1363,7 +1412,7 @@ export function App() {
 
   function addDeformKey() {
     if (!currentAnimation || !selectedDeformMesh) {
-      setStatus('Select an animation and mesh attachment before adding deform keys.');
+      setLocalizedStatus('status.selectAnimationAndMeshBeforeDeformKeys');
       return;
     }
 
@@ -1382,30 +1431,44 @@ export function App() {
     ? findAttachmentForEdit(document, activeSkinName, selection.name)
     : undefined;
   const selectedDeformMesh = selectedDeformAttachment?.type === 'mesh' ? selectedDeformAttachment : undefined;
+  const activeCanvasMeshName = selection?.type === 'meshVertex'
+    ? selection.attachment
+    : selectedDeformMesh?.name ?? selectedCanvasVertices?.attachment ?? '';
   const currentTimeline = currentAnimation && selectedBone
     ? currentAnimation.bones.find((timeline) => timeline.bone === selectedBone.name)
     : undefined;
+  const sampleOptions = [
+    { label: t('sample.region'), onSelect: handleCreateSampleCharacter },
+    { label: t('sample.mesh'), onSelect: handleCreateMeshSampleCharacter },
+    { label: t('sample.weighted'), onSelect: handleCreateWeightedMeshSampleCharacter },
+    { label: t('sample.deform'), onSelect: handleCreateDeformSampleCharacter },
+    { label: t('sample.ik'), onSelect: handleCreateIkSampleCharacter },
+    { label: t('sample.skin'), onSelect: handleCreateSkinSampleCharacter },
+    { label: t('sample.timelines'), onSelect: handleCreateAnimationTimelinesSampleCharacter },
+    { label: t('sample.stateMachine'), onSelect: handleCreateAnimationMixingStateMachineSampleCharacter },
+    { label: t('sample.timelineEditing'), onSelect: handleCreateTimelineUsabilitySampleCharacter }
+  ];
+
+  menuCommandRef.current = (command) => {
+    if (command === 'newProject') void handleNewProject();
+    if (command === 'openProject') void handleOpenProject();
+    if (command === 'saveProject') void handleSaveProject();
+    if (command === 'exportProject') void handleExportSuwol2DAsset();
+    if (command === 'quit') void handleWindowCloseRequest();
+    if (command === 'undo') undo();
+    if (command === 'redo') redo();
+  };
 
   return (
     <main className="editor-shell">
       <header className="editor-toolbar">
-        <ToolbarButton label={t('toolbar.newProject')} onClick={handleNewProject} icon={<FilePlus2 size={17} />} />
-        <ToolbarButton label={t('toolbar.openProject')} onClick={handleOpenProject} icon={<FolderOpen size={17} />} />
+        <ToolbarButton label={t('toolbar.newProject')} onClick={() => void handleNewProject()} icon={<FilePlus2 size={17} />} />
+        <ToolbarButton label={t('toolbar.openProject')} onClick={() => void handleOpenProject()} icon={<FolderOpen size={17} />} />
         <ToolbarButton label={t('toolbar.saveProject')} onClick={() => void handleSaveProject()} icon={<Save size={17} />} />
         <ToolbarButton label={t('toolbar.undo')} onClick={undo} icon={<Undo2 size={17} />} disabled={history.undo.length === 0} />
         <ToolbarButton label={t('toolbar.redo')} onClick={redo} icon={<Redo2 size={17} />} disabled={history.redo.length === 0} />
         <ToolbarButton label={t('toolbar.importImage')} onClick={handleImportImage} icon={<ImagePlus size={17} />} />
-        <ToolbarButton label={t('sample.region')} onClick={handleCreateSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label={t('sample.mesh')} onClick={handleCreateMeshSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label={t('sample.weighted')} onClick={handleCreateWeightedMeshSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label={t('sample.deform')} onClick={handleCreateDeformSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label={t('sample.ik')} onClick={handleCreateIkSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label={t('sample.skin')} onClick={handleCreateSkinSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label={t('sample.timelines')} onClick={handleCreateAnimationTimelinesSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label={t('sample.stateMachine')} onClick={handleCreateAnimationMixingStateMachineSampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label={t('sample.timelineEditing')} onClick={handleCreateTimelineUsabilitySampleCharacter} icon={<Sparkles size={17} />} />
-        <ToolbarButton label={t('toolbar.exportJson')} onClick={handleExportJson} icon={<Download size={17} />} />
-        <ToolbarButton label={t('toolbar.exportSuwol2D')} onClick={handleExportSuwol2DAsset} icon={<Download size={17} />} />
+        <SampleMenu options={sampleOptions} />
         <div className="toolbar-separator" />
         <button className="icon-label-button" type="button" onClick={() => setIsPlaying((value) => !value)}>
           {isPlaying ? <Pause size={17} /> : <Play size={17} />}
@@ -1421,6 +1484,9 @@ export function App() {
           <span>{t('toolbar.time')}</span>
           <input type="number" value={round(currentTime)} min={0} step={safeSnapStep} onChange={(event) => setScrubTime(toNumber(event.target.value, currentTime))} />
         </label>
+        <div className="toolbar-spacer" />
+        <ToolbarButton label={t('toolbar.exportJson')} onClick={handleExportJson} icon={<Download size={17} />} />
+        <ToolbarButton label={t('toolbar.exportSuwol2D')} onClick={handleExportSuwol2DAsset} icon={<Download size={17} />} />
         <LanguageSelector
           locale={locale}
           locales={supportedLocales}
@@ -1536,6 +1602,17 @@ export function App() {
             previewMix={previewMix}
             lastEvent={lastTimelineEvent}
             selection={selection}
+            selectedVertices={selectedCanvasVertices}
+            setSelection={setSelection}
+            setSelectedVertices={setSelectedCanvasVertices}
+            toolMode={canvasTool}
+            setToolMode={setCanvasTool}
+            brushSettings={canvasBrushSettings}
+            setBrushSettings={setCanvasBrushSettings}
+            activeMeshName={activeCanvasMeshName}
+            deformTime={getKeyEditTime(currentTime)}
+            updateDocument={updateDocument}
+            setLocalizedStatus={setLocalizedStatus}
           />
         </section>
 
@@ -1744,6 +1821,33 @@ function ToolbarButton({
   );
 }
 
+function SampleMenu({
+  options
+}: {
+  options: Array<{ label: string; onSelect: () => void | Promise<void> }>;
+}) {
+  const { t } = useI18n();
+  return (
+    <label className="sample-menu">
+      <Sparkles size={17} />
+      <span>{t('toolbar.samples')}</span>
+      <select
+        value=""
+        onChange={(event) => {
+          const value = event.target.value;
+          if (!value) return;
+          void options[Number(value)]?.onSelect();
+        }}
+      >
+        <option value="">{t('toolbar.chooseSample')}</option>
+        {options.map((option, index) => (
+          <option key={option.label} value={index}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function LanguageSelector({
   locale,
   locales,
@@ -1756,7 +1860,7 @@ function LanguageSelector({
   const { t } = useI18n();
   return (
     <label className="language-selector">
-      <span>{t('settings.language')}</span>
+      <span>{t('language.label')}</span>
       <select value={locale} onChange={(event) => onChange(event.target.value as LocaleCode)}>
         {locales.map((candidate) => (
           <option key={candidate.code} value={candidate.code}>{candidate.nativeLabel}</option>
@@ -1799,7 +1903,7 @@ function ProjectHeader({
   const { t } = useI18n();
   return (
     <section className="project-header">
-      <p>Suwol2D Editor Skin v6</p>
+      <p>{t('app.editorName')}</p>
       <h1>{document.name}{isDirty ? ' *' : ''}</h1>
       <span>{projectPath || t('common.noneSelected')}</span>
     </section>
@@ -1937,8 +2041,8 @@ function StateMachinePreviewPanel({
         <button type="button" onClick={() => setPreview((current) => ({ ...current, isRunning: false }))}>{t('common.stop')}</button>
       </div>
       <ReadonlyRow label={t('timeline.currentTime')} value={preview.currentStateName || t('common.none')} />
-      <ReadonlyRow label="Next" value={preview.nextStateName || t('common.none')} />
-      <ReadonlyRow label="Progress" value={`${Math.round(progress * 100)}%`} />
+      <ReadonlyRow label={t('stateMachine.next')} value={preview.nextStateName || t('common.none')} />
+      <ReadonlyRow label={t('stateMachine.progress')} value={`${Math.round(progress * 100)}%`} />
       {machine?.parameters.map((parameter) => (
         parameter.type === 'bool' ? (
           <label className="field-row checkbox-row" key={parameter.name}>
@@ -1988,31 +2092,31 @@ function StateMachineEditor({
   return (
     <section className="inspector-section state-machine-editor">
       <h2>{t('inspector.stateMachine')}</h2>
-      <TextField label="Name" value={machine.name} onChange={(value) => renameStateMachine(document, updateDocument, machine.name, value, setSelection, setStatus)} />
-      <SelectField label="Initial" value={machine.initialState} options={stateOptions} onChange={(value) => updateMachine((draftMachine) => { draftMachine.initialState = value; })} />
+      <TextField label={t('inspector.name')} value={machine.name} onChange={(value) => renameStateMachine(document, updateDocument, machine.name, value, setSelection, setStatus)} />
+      <SelectField label={t('stateMachine.initial')} value={machine.initialState} options={stateOptions} onChange={(value) => updateMachine((draftMachine) => { draftMachine.initialState = value; })} />
 
-      <h3>States</h3>
-      <button className="wide-action" type="button" onClick={() => updateMachine((draftMachine) => addStateMachineState(draftMachine, animationOptions[0] ?? ''))}>Add State</button>
+      <h3>{t('stateMachine.states')}</h3>
+      <button className="wide-action" type="button" onClick={() => updateMachine((draftMachine) => addStateMachineState(draftMachine, animationOptions[0] ?? ''))}>{t('stateMachine.addState')}</button>
       {machine.states.map((state, stateIndex) => (
         <div className="state-machine-card" key={`${machine.name}-state-${stateIndex}`}>
-          <TextField label="Name" value={state.name} onChange={(value) => updateMachine((draftMachine) => renameStateMachineState(draftMachine, state.name, value, setStatus))} />
-          <SelectField label="Animation" value={state.animation} options={animationOptions} onChange={(value) => updateMachine((draftMachine) => { draftMachine.states[stateIndex].animation = value; })} />
+          <TextField label={t('inspector.name')} value={state.name} onChange={(value) => updateMachine((draftMachine) => renameStateMachineState(draftMachine, state.name, value, setStatus))} />
+          <SelectField label={t('inspector.animation')} value={state.animation} options={animationOptions} onChange={(value) => updateMachine((draftMachine) => { draftMachine.states[stateIndex].animation = value; })} />
           <label className="field-row checkbox-row">
-            <span>Loop</span>
+            <span>{t('common.loop')}</span>
             <input type="checkbox" checked={state.loop} onChange={(event) => updateMachine((draftMachine) => { draftMachine.states[stateIndex].loop = event.target.checked; })} />
           </label>
-          <NumberField label="Speed" value={state.speed} onChange={(value) => updateMachine((draftMachine) => { draftMachine.states[stateIndex].speed = Math.max(0, value); })} />
-          <button type="button" onClick={() => updateMachine((draftMachine) => deleteStateMachineState(draftMachine, state.name))}>Delete State</button>
+          <NumberField label={t('timeline.speed')} value={state.speed} onChange={(value) => updateMachine((draftMachine) => { draftMachine.states[stateIndex].speed = Math.max(0, value); })} />
+          <button type="button" onClick={() => updateMachine((draftMachine) => deleteStateMachineState(draftMachine, state.name))}>{t('stateMachine.deleteState')}</button>
         </div>
       ))}
 
-      <h3>Parameters</h3>
-      <button className="wide-action" type="button" onClick={() => updateMachine(addStateMachineParameter)}>Add Parameter</button>
+      <h3>{t('stateMachine.parameters')}</h3>
+      <button className="wide-action" type="button" onClick={() => updateMachine(addStateMachineParameter)}>{t('stateMachine.addParameter')}</button>
       {machine.parameters.map((parameter, parameterIndex) => (
         <div className="state-machine-card" key={`${machine.name}-parameter-${parameterIndex}`}>
-          <TextField label="Name" value={parameter.name} onChange={(value) => updateMachine((draftMachine) => renameStateMachineParameter(draftMachine, parameter.name, value, setStatus))} />
+          <TextField label={t('inspector.name')} value={parameter.name} onChange={(value) => updateMachine((draftMachine) => renameStateMachineParameter(draftMachine, parameter.name, value, setStatus))} />
           <SelectField
-            label="Type"
+            label={t('inspector.type')}
             value={parameter.type}
             options={['bool', 'trigger']}
             onChange={(value) => updateMachine((draftMachine) => {
@@ -2028,23 +2132,23 @@ function StateMachineEditor({
           />
           {parameter.type === 'bool' && (
             <label className="field-row checkbox-row">
-              <span>Default</span>
+              <span>{t('stateMachine.default')}</span>
               <input type="checkbox" checked={parameter.defaultBool === true} onChange={(event) => updateMachine((draftMachine) => { draftMachine.parameters[parameterIndex].defaultBool = event.target.checked; })} />
             </label>
           )}
-          <button type="button" onClick={() => updateMachine((draftMachine) => deleteStateMachineParameter(draftMachine, parameter.name))}>Delete Parameter</button>
+          <button type="button" onClick={() => updateMachine((draftMachine) => deleteStateMachineParameter(draftMachine, parameter.name))}>{t('stateMachine.deleteParameter')}</button>
         </div>
       ))}
 
-      <h3>Transitions</h3>
-      <button className="wide-action" type="button" onClick={() => updateMachine(addStateMachineTransition)}>Add Transition</button>
+      <h3>{t('stateMachine.transitions')}</h3>
+      <button className="wide-action" type="button" onClick={() => updateMachine(addStateMachineTransition)}>{t('stateMachine.addTransition')}</button>
       {machine.transitions.map((transition, transitionIndex) => (
         <div className="state-machine-card" key={`${machine.name}-transition-${transitionIndex}`}>
-          <SelectField label="From" value={transition.from} options={transitionFromOptions} onChange={(value) => updateMachine((draftMachine) => { draftMachine.transitions[transitionIndex].from = value; })} />
-          <SelectField label="To" value={transition.to} options={stateOptions} onChange={(value) => updateMachine((draftMachine) => { draftMachine.transitions[transitionIndex].to = value; })} />
-          <NumberField label="Fade" value={transition.fadeDuration} onChange={(value) => updateMachine((draftMachine) => { draftMachine.transitions[transitionIndex].fadeDuration = Math.max(0, value); })} />
-          <button type="button" onClick={() => updateMachine((draftMachine) => addStateMachineCondition(draftMachine, transitionIndex))}>Add Condition</button>
-          <button type="button" onClick={() => updateMachine((draftMachine) => { draftMachine.transitions.splice(transitionIndex, 1); })}>Delete Transition</button>
+          <SelectField label={t('stateMachine.from')} value={transition.from} options={transitionFromOptions} onChange={(value) => updateMachine((draftMachine) => { draftMachine.transitions[transitionIndex].from = value; })} />
+          <SelectField label={t('stateMachine.to')} value={transition.to} options={stateOptions} onChange={(value) => updateMachine((draftMachine) => { draftMachine.transitions[transitionIndex].to = value; })} />
+          <NumberField label={t('stateMachine.fade')} value={transition.fadeDuration} onChange={(value) => updateMachine((draftMachine) => { draftMachine.transitions[transitionIndex].fadeDuration = Math.max(0, value); })} />
+          <button type="button" onClick={() => updateMachine((draftMachine) => addStateMachineCondition(draftMachine, transitionIndex))}>{t('stateMachine.addCondition')}</button>
+          <button type="button" onClick={() => updateMachine((draftMachine) => { draftMachine.transitions.splice(transitionIndex, 1); })}>{t('stateMachine.deleteTransition')}</button>
           {(transition.conditions ?? []).map((condition, conditionIndex) => {
             const parameter = machine.parameters.find((candidate) => candidate.name === condition.parameter);
             return (
@@ -2053,13 +2157,13 @@ function StateMachineEditor({
                   {parameterOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
                 <select value={condition.mode} onChange={(event) => updateMachine((draftMachine) => { draftMachine.transitions[transitionIndex].conditions[conditionIndex].mode = event.target.value === 'triggered' ? 'triggered' : 'equals'; })}>
-                  <option value="equals">equals</option>
-                  <option value="triggered">triggered</option>
+                  <option value="equals">{t('stateMachine.equals')}</option>
+                  <option value="triggered">{t('stateMachine.triggered')}</option>
                 </select>
                 {parameter?.type === 'bool' && condition.mode === 'equals' && (
                   <label className="mini-checkbox">
                     <input type="checkbox" checked={condition.boolValue === true} onChange={(event) => updateMachine((draftMachine) => { draftMachine.transitions[transitionIndex].conditions[conditionIndex].boolValue = event.target.checked; })} />
-                    <span>true</span>
+                    <span>{t('common.true')}</span>
                   </label>
                 )}
                 <button type="button" onClick={() => updateMachine((draftMachine) => { draftMachine.transitions[transitionIndex].conditions.splice(conditionIndex, 1); })}>
@@ -2106,7 +2210,7 @@ function Inspector({
     return (
       <section className="inspector-section">
         <h2>{t('inspector.document')}</h2>
-        <TextField label="Name" value={document.name} onChange={(value) => updateDocument((draft) => { draft.name = value; })} />
+        <TextField label={t('inspector.name')} value={document.name} onChange={(value) => updateDocument((draft) => { draft.name = value; })} />
       </section>
     );
   }
@@ -2116,9 +2220,9 @@ function Inspector({
     return (
       <section className="inspector-section">
         <h2>{t('inspector.image')}</h2>
-        <ReadonlyRow label="Name" value={image?.name ?? selection.name} />
-        <ReadonlyRow label="Path" value={image?.relativePath ?? ''} />
-        <ReadonlyRow label="Size" value={image ? `${image.width} x ${image.height}` : ''} />
+        <ReadonlyRow label={t('inspector.name')} value={image?.name ?? selection.name} />
+        <ReadonlyRow label={t('inspector.path')} value={image?.relativePath ?? ''} />
+        <ReadonlyRow label={t('inspector.size')} value={image ? `${image.width} x ${image.height}` : ''} />
       </section>
     );
   }
@@ -2129,19 +2233,19 @@ function Inspector({
     return (
       <section className="inspector-section">
         <h2>{t('inspector.bone')}</h2>
-        <TextField label="Name" value={bone.name} onChange={(value) => renameBone(document, updateDocument, bone.name, value, setSelection, setStatus)} />
+        <TextField label={t('inspector.name')} value={bone.name} onChange={(value) => renameBone(document, updateDocument, bone.name, value, setSelection, setStatus)} />
         <SelectField
-          label="Parent"
+          label={t('inspector.parent')}
           value={bone.parent}
           options={['', ...document.bones.filter((candidate) => candidate.name !== bone.name).map((candidate) => candidate.name)]}
           onChange={(value) => updateDocument((draft) => { findBone(draft, bone.name).parent = value; })}
         />
         <NumberField label="X" value={bone.x} onChange={(value) => updateDocument((draft) => { findBone(draft, bone.name).x = value; })} />
         <NumberField label="Y" value={bone.y} onChange={(value) => updateDocument((draft) => { findBone(draft, bone.name).y = value; })} />
-        <NumberField label="Rotation" value={bone.rotation} onChange={(value) => updateDocument((draft) => { findBone(draft, bone.name).rotation = value; })} />
-        <NumberField label="Scale X" value={bone.scaleX} onChange={(value) => updateDocument((draft) => { findBone(draft, bone.name).scaleX = value; })} />
-        <NumberField label="Scale Y" value={bone.scaleY} onChange={(value) => updateDocument((draft) => { findBone(draft, bone.name).scaleY = value; })} />
-        <NumberField label="Length" value={bone.length ?? estimateBoneLength(document, bone.name)} onChange={(value) => updateDocument((draft) => { findBone(draft, bone.name).length = Math.max(0, value); })} />
+        <NumberField label={t('inspector.rotation')} value={bone.rotation} onChange={(value) => updateDocument((draft) => { findBone(draft, bone.name).rotation = value; })} />
+        <NumberField label={t('inspector.scaleX')} value={bone.scaleX} onChange={(value) => updateDocument((draft) => { findBone(draft, bone.name).scaleX = value; })} />
+        <NumberField label={t('inspector.scaleY')} value={bone.scaleY} onChange={(value) => updateDocument((draft) => { findBone(draft, bone.name).scaleY = value; })} />
+        <NumberField label={t('inspector.length')} value={bone.length ?? estimateBoneLength(document, bone.name)} onChange={(value) => updateDocument((draft) => { findBone(draft, bone.name).length = Math.max(0, value); })} />
       </section>
     );
   }
@@ -2157,20 +2261,20 @@ function Inspector({
     return (
       <section className="inspector-section">
         <h2>{t('inspector.slot')}</h2>
-        <TextField label="Name" value={slot.name} onChange={(value) => renameSlot(document, updateDocument, slot.name, value, setSelection, setStatus)} />
-        <SelectField label="Bone" value={slot.bone} options={document.bones.map((bone) => bone.name)} onChange={(value) => updateDocument((draft) => { findSlot(draft, slot.name).bone = value; })} />
-        <SelectField label="Attachment" value={slot.attachment} options={slotAttachmentOptions} onChange={(value) => updateDocument((draft) => { findSlot(draft, slot.name).attachment = value; })} />
-        <NumberField label="Draw Order" value={slot.drawOrder} onChange={(value) => updateDocument((draft) => { findSlot(draft, slot.name).drawOrder = value; })} />
+        <TextField label={t('inspector.name')} value={slot.name} onChange={(value) => renameSlot(document, updateDocument, slot.name, value, setSelection, setStatus)} />
+        <SelectField label={t('inspector.bone')} value={slot.bone} options={document.bones.map((bone) => bone.name)} onChange={(value) => updateDocument((draft) => { findSlot(draft, slot.name).bone = value; })} />
+        <SelectField label={t('inspector.attachment')} value={slot.attachment} options={slotAttachmentOptions} onChange={(value) => updateDocument((draft) => { findSlot(draft, slot.name).attachment = value; })} />
+        <NumberField label={t('inspector.drawOrder')} value={slot.drawOrder} onChange={(value) => updateDocument((draft) => { findSlot(draft, slot.name).drawOrder = value; })} />
         <div className="inspector-action-row">
           <button type="button" onClick={() => moveSlotDrawOrder(document, updateDocument, slot.name, -1)}>
-            <ArrowUp size={14} /> Move Up
+            <ArrowUp size={14} /> {t('inspector.moveUp')}
           </button>
           <button type="button" onClick={() => moveSlotDrawOrder(document, updateDocument, slot.name, 1)}>
-            <ArrowDown size={14} /> Move Down
+            <ArrowDown size={14} /> {t('inspector.moveDown')}
           </button>
         </div>
         <button className="wide-action" type="button" onClick={() => normalizeSlotDrawOrder(updateDocument)}>
-          Normalize Draw Order
+          {t('inspector.normalizeDrawOrder')}
         </button>
       </section>
     );
@@ -2182,9 +2286,9 @@ function Inspector({
     return (
       <section className="inspector-section">
         <h2>{t('inspector.skin')}</h2>
-        <TextField label="Name" value={skin.name} onChange={(value) => renameSkin(document, updateDocument, skin.name, value, setSelection, setActiveSkinName, setStatus)} />
-        <ReadonlyRow label="Active" value={activeSkinName === skin.name ? t('common.yes') : t('common.no')} />
-        <ReadonlyRow label="Attachments" value={String(skin.attachments.length)} />
+        <TextField label={t('inspector.name')} value={skin.name} onChange={(value) => renameSkin(document, updateDocument, skin.name, value, setSelection, setActiveSkinName, setStatus)} />
+        <ReadonlyRow label={t('common.active')} value={activeSkinName === skin.name ? t('common.yes') : t('common.no')} />
+        <ReadonlyRow label={t('panel.attachments')} value={String(skin.attachments.length)} />
         <button className="wide-action" type="button" onClick={() => { setActiveSkinName(skin.name); setSelection({ type: 'skin', name: skin.name }); }}>
           {t('inspector.setActiveSkin')}
         </button>
@@ -2203,9 +2307,9 @@ function Inspector({
     return (
       <section className="inspector-section">
         <h2>{t('inspector.attachment')}</h2>
-        <TextField label="Name" value={attachment.name} onChange={(value) => renameAttachment(document, activeSkinName, updateDocument, attachment.name, value, setSelection, setStatus)} />
+        <TextField label={t('inspector.name')} value={attachment.name} onChange={(value) => renameAttachment(document, activeSkinName, updateDocument, attachment.name, value, setSelection, setStatus)} />
         <SelectField
-          label="Type"
+          label={t('inspector.type')}
           value={attachment.type}
           options={['region', 'mesh']}
           onChange={(value) => updateDocument((draft) => {
@@ -2224,17 +2328,17 @@ function Inspector({
             }
           })}
         />
-        <SelectField label="Slot" value={attachment.slot} options={document.slots.map((slot) => slot.name)} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).slot = value; })} />
-        <SelectField label="Image" value={attachment.image} options={images.map((image) => image.name)} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).image = value; })} />
+        <SelectField label={t('inspector.slot')} value={attachment.slot} options={document.slots.map((slot) => slot.name)} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).slot = value; })} />
+        <SelectField label={t('inspector.image')} value={attachment.image} options={images.map((image) => image.name)} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).image = value; })} />
         <NumberField label="X" value={attachment.x} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).x = value; })} />
         <NumberField label="Y" value={attachment.y} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).y = value; })} />
-        <NumberField label="Rotation" value={attachment.rotation} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).rotation = value; })} />
-        <NumberField label="Scale X" value={attachment.scaleX} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).scaleX = value; })} />
-        <NumberField label="Scale Y" value={attachment.scaleY} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).scaleY = value; })} />
+        <NumberField label={t('inspector.rotation')} value={attachment.rotation} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).rotation = value; })} />
+        <NumberField label={t('inspector.scaleX')} value={attachment.scaleX} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).scaleX = value; })} />
+        <NumberField label={t('inspector.scaleY')} value={attachment.scaleY} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).scaleY = value; })} />
         {attachment.type === 'region' ? (
           <>
-            <NumberField label="Width" value={attachment.width} onChange={(value) => updateDocument((draft) => { findRegionAttachmentForEdit(draft, activeSkinName, attachment.name).width = value; })} />
-            <NumberField label="Height" value={attachment.height} onChange={(value) => updateDocument((draft) => { findRegionAttachmentForEdit(draft, activeSkinName, attachment.name).height = value; })} />
+            <NumberField label={t('inspector.width')} value={attachment.width} onChange={(value) => updateDocument((draft) => { findRegionAttachmentForEdit(draft, activeSkinName, attachment.name).width = value; })} />
+            <NumberField label={t('inspector.height')} value={attachment.height} onChange={(value) => updateDocument((draft) => { findRegionAttachmentForEdit(draft, activeSkinName, attachment.name).height = value; })} />
           </>
         ) : (
           <MeshAttachmentFields
@@ -2247,7 +2351,7 @@ function Inspector({
         )}
         {otherSkins.length > 0 && (
           <>
-            <h3>Copy To Skin</h3>
+            <h3>{t('inspector.copyToSkin')}</h3>
             <div className="inspector-action-row wrap">
               {otherSkins.map((skin) => (
                 <button
@@ -2269,9 +2373,9 @@ function Inspector({
     const attachment = findAttachmentForEdit(document, activeSkinName, selection.attachment);
     return (
       <section className="inspector-section">
-        <h2>Mesh Vertex</h2>
-        <ReadonlyRow label="Attachment" value={attachment?.name ?? selection.attachment} />
-        <ReadonlyRow label="Vertex" value={String(selection.vertex)} />
+        <h2>{t('inspector.meshVertex')}</h2>
+        <ReadonlyRow label={t('inspector.attachment')} value={attachment?.name ?? selection.attachment} />
+        <ReadonlyRow label={t('inspector.vertex')} value={String(selection.vertex)} />
       </section>
     );
   }
@@ -2279,10 +2383,10 @@ function Inspector({
   if (selection.type === 'deformKey') {
     return (
       <section className="inspector-section">
-        <h2>Deform Key</h2>
-        <ReadonlyRow label="Animation" value={selection.animation} />
-        <ReadonlyRow label="Attachment" value={selection.attachment} />
-        <ReadonlyRow label="Time" value={String(selection.time)} />
+        <h2>{t('inspector.deformKey')}</h2>
+        <ReadonlyRow label={t('inspector.animation')} value={selection.animation} />
+        <ReadonlyRow label={t('inspector.attachment')} value={selection.attachment} />
+        <ReadonlyRow label={t('toolbar.time')} value={String(selection.time)} />
       </section>
     );
   }
@@ -2293,23 +2397,23 @@ function Inspector({
     const boneOptions = document.bones.map((bone) => bone.name);
     return (
       <section className="inspector-section">
-        <h2>IK Constraint</h2>
-        <TextField label="Name" value={constraint.name} onChange={(value) => renameIkConstraint(document, updateDocument, constraint.name, value, setSelection, setStatus)} />
+        <h2>{t('inspector.ikConstraint')}</h2>
+        <TextField label={t('inspector.name')} value={constraint.name} onChange={(value) => renameIkConstraint(document, updateDocument, constraint.name, value, setSelection, setStatus)} />
         <label className="field-row checkbox-row">
-          <span>Enabled</span>
+          <span>{t('inspector.enabled')}</span>
           <input type="checkbox" checked={constraint.enabled} onChange={(event) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).enabled = event.target.checked; })} />
         </label>
-        <SelectField label="Parent" value={constraint.parentBone} options={boneOptions} onChange={(value) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).parentBone = value; })} />
-        <SelectField label="Child" value={constraint.childBone} options={boneOptions} onChange={(value) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).childBone = value; })} />
-        <SelectField label="Target" value={constraint.targetBone} options={boneOptions} onChange={(value) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).targetBone = value; })} />
-        <NumberField label="Mix" value={constraint.mix} onChange={(value) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).mix = Math.max(0, Math.min(1, value)); })} />
+        <SelectField label={t('inspector.parent')} value={constraint.parentBone} options={boneOptions} onChange={(value) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).parentBone = value; })} />
+        <SelectField label={t('inspector.child')} value={constraint.childBone} options={boneOptions} onChange={(value) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).childBone = value; })} />
+        <SelectField label={t('inspector.target')} value={constraint.targetBone} options={boneOptions} onChange={(value) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).targetBone = value; })} />
+        <NumberField label={t('inspector.mix')} value={constraint.mix} onChange={(value) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).mix = Math.max(0, Math.min(1, value)); })} />
         <SelectField
-          label="Bend"
+          label={t('inspector.bend')}
           value={String(constraint.bendDirection)}
           options={['1', '-1']}
           onChange={(value) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).bendDirection = value === '-1' ? -1 : 1; })}
         />
-        <NumberField label="Order" value={constraint.order} onChange={(value) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).order = Math.trunc(value); })} />
+        <NumberField label={t('inspector.order')} value={constraint.order} onChange={(value) => updateDocument((draft) => { findIkConstraint(draft, constraint.name).order = Math.trunc(value); })} />
       </section>
     );
   }
@@ -2358,6 +2462,27 @@ function Inspector({
   );
 }
 
+type CanvasDragState =
+  | { kind: 'pan'; pointerId: number; x: number; y: number }
+  | {
+    kind: 'moveVertex';
+    pointerId: number;
+    attachmentName: string;
+    vertices: number[];
+    lastLocal: Point2D;
+    transform: AttachmentCanvasTransform;
+    mutated: boolean;
+  }
+  | { kind: 'weightBrush'; pointerId: number; attachmentName: string; mutated: boolean }
+  | {
+    kind: 'deformBrush';
+    pointerId: number;
+    attachmentName: string;
+    lastLocal: Point2D;
+    transform: AttachmentCanvasTransform;
+    mutated: boolean;
+  };
+
 function CanvasPreview({
   document,
   images,
@@ -2366,7 +2491,18 @@ function CanvasPreview({
   time,
   previewMix,
   lastEvent,
-  selection
+  selection,
+  selectedVertices,
+  setSelection,
+  setSelectedVertices,
+  toolMode,
+  setToolMode,
+  brushSettings,
+  setBrushSettings,
+  activeMeshName,
+  deformTime,
+  updateDocument,
+  setLocalizedStatus
 }: {
   document: Suwol2DDocument;
   images: ImportedImage[];
@@ -2376,12 +2512,26 @@ function CanvasPreview({
   previewMix: PreviewAnimationMix | null;
   lastEvent: string;
   selection: Selection | null;
+  selectedVertices: CanvasVertexSelection | null;
+  setSelection: (selection: Selection | null) => void;
+  setSelectedVertices: Dispatch<SetStateAction<CanvasVertexSelection | null>>;
+  toolMode: CanvasToolMode;
+  setToolMode: (mode: CanvasToolMode) => void;
+  brushSettings: CanvasBrushSettings;
+  setBrushSettings: Dispatch<SetStateAction<CanvasBrushSettings>>;
+  activeMeshName: string;
+  deformTime: number;
+  updateDocument: (updater: (document: Suwol2DDocument) => void, trackHistory?: boolean) => void;
+  setLocalizedStatus: (key: TranslationKey, params?: TranslationParams) => void;
 }) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageCache = useRef(new Map<string, HTMLImageElement>());
-  const dragState = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const dragState = useRef<CanvasDragState | null>(null);
   const [view, setView] = useState<PreviewView>(defaultPreviewView);
+  const [hoverPoint, setHoverPoint] = useState<Point2D | null>(null);
+  const [spacePanActive, setSpacePanActive] = useState(false);
+  const effectiveToolMode = spacePanActive ? 'pan' : toolMode;
 
   useEffect(() => {
     let cancelled = false;
@@ -2406,7 +2556,7 @@ function CanvasPreview({
     return () => {
       cancelled = true;
     };
-  }, [images, document, activeSkinName, animationName, time, previewMix, selection, view]);
+  }, [images, document, activeSkinName, animationName, time, previewMix, selection, selectedVertices, view, hoverPoint, effectiveToolMode, brushSettings]);
 
   useEffect(() => {
     drawPreview();
@@ -2418,7 +2568,23 @@ function CanvasPreview({
         return;
       }
 
-      if (event.key.toLowerCase() === 'f') {
+      const key = event.key.toLowerCase();
+      if (key === ' ') {
+        event.preventDefault();
+        setSpacePanActive(true);
+      } else if (key === 'v') {
+        event.preventDefault();
+        setToolMode('select');
+      } else if (key === 'm') {
+        event.preventDefault();
+        setToolMode('moveVertex');
+      } else if (key === 'w') {
+        event.preventDefault();
+        setToolMode('weightBrush');
+      } else if (key === 'd') {
+        event.preventDefault();
+        setToolMode('deformBrush');
+      } else if (key === 'f') {
         event.preventDefault();
         fitToContent();
       } else if (event.key === '0') {
@@ -2427,9 +2593,19 @@ function CanvasPreview({
       }
     };
 
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === ' ') {
+        setSpacePanActive(false);
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  });
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [setToolMode]);
 
   function resetView() {
     setView(defaultPreviewView);
@@ -2479,36 +2655,166 @@ function CanvasPreview({
   }
 
   function handlePointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
-    if (event.button !== 1 && event.button !== 2) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const point = getCanvasPoint(canvas, event);
+    setHoverPoint(point);
+
+    if (event.button === 1 || event.button === 2 || effectiveToolMode === 'pan') {
+      event.preventDefault();
+      dragState.current = { kind: 'pan', pointerId: event.pointerId, x: point.x, y: point.y };
+      event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
 
+    if (event.button !== 0) {
+      return;
+    }
+
+    const targets = getVisibleMeshTargets();
+    if (effectiveToolMode === 'select' || effectiveToolMode === 'moveVertex') {
+      const hit = hitTestMeshVertex(targets, point, 12);
+      if (!hit) {
+        if (!event.shiftKey) {
+          setSelectedVertices(null);
+          setSelection(null);
+        }
+        return;
+      }
+
+      event.preventDefault();
+      const nextSelection = updateCanvasVertexSelection(selectedVertices, hit.attachmentName, hit.vertex, event.shiftKey);
+      setSelectedVertices(nextSelection);
+      setSelection(nextSelection ? { type: 'meshVertex', attachment: hit.attachmentName, vertex: hit.vertex } : null);
+
+      if (effectiveToolMode === 'moveVertex' && nextSelection?.vertices.length) {
+        dragState.current = {
+          kind: 'moveVertex',
+          pointerId: event.pointerId,
+          attachmentName: hit.attachmentName,
+          vertices: nextSelection.vertices,
+          lastLocal: canvasToAttachmentLocal(point, hit.transform),
+          transform: hit.transform,
+          mutated: false
+        };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+      return;
+    }
+
+    const activeTarget = getActiveMeshTarget(targets);
+    if (!activeTarget) {
+      setLocalizedStatus('canvas.vertex.noMeshSelected');
+      return;
+    }
+
+    if (effectiveToolMode === 'weightBrush') {
+      event.preventDefault();
+      if (!brushSettings.boneName) {
+        setLocalizedStatus('canvas.brush.noBoneSelected');
+        return;
+      }
+
+      const changed = applyWeightBrushAtPoint(activeTarget, point, true);
+      dragState.current = {
+        kind: 'weightBrush',
+        pointerId: event.pointerId,
+        attachmentName: activeTarget.attachment.name,
+        mutated: changed
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+
+    if (effectiveToolMode === 'deformBrush') {
+      event.preventDefault();
+      if (!animationName) {
+        setLocalizedStatus('canvas.deform.noAnimationSelected');
+        return;
+      }
+
+      dragState.current = {
+        kind: 'deformBrush',
+        pointerId: event.pointerId,
+        attachmentName: activeTarget.attachment.name,
+        lastLocal: canvasToAttachmentLocal(point, activeTarget.transform),
+        transform: activeTarget.transform,
+        mutated: false
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
     event.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const point = getCanvasPoint(canvas, event);
-    dragState.current = { pointerId: event.pointerId, x: point.x, y: point.y };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
+    setHoverPoint(point);
 
-  function handlePointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
     const drag = dragState.current;
     if (!drag || drag.pointerId !== event.pointerId) {
       return;
     }
 
-    event.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const point = getCanvasPoint(canvas, event);
-    const deltaX = point.x - drag.x;
-    const deltaY = point.y - drag.y;
-    dragState.current = { ...drag, x: point.x, y: point.y };
-    setView((current) => ({
-      ...current,
-      panX: current.panX + deltaX,
-      panY: current.panY + deltaY
-    }));
+    if (drag.kind === 'pan') {
+      const deltaX = point.x - drag.x;
+      const deltaY = point.y - drag.y;
+      dragState.current = { ...drag, x: point.x, y: point.y };
+      setView((current) => ({
+        ...current,
+        panX: current.panX + deltaX,
+        panY: current.panY + deltaY
+      }));
+      return;
+    }
+
+    const targets = getVisibleMeshTargets();
+    const target = targets.find((candidate) => candidate.attachment.name === drag.attachmentName);
+    if (!target) {
+      return;
+    }
+
+    if (drag.kind === 'moveVertex') {
+      const currentLocal = canvasToAttachmentLocal(point, drag.transform);
+      const deltaX = currentLocal.x - drag.lastLocal.x;
+      const deltaY = currentLocal.y - drag.lastLocal.y;
+      if (Math.hypot(deltaX, deltaY) <= 0.000001) {
+        return;
+      }
+
+      updateDocument((draft) => {
+        const mesh = findMeshAttachmentForEdit(draft, activeSkinName, drag.attachmentName);
+        for (const vertexIndex of drag.vertices) {
+          const vertex = mesh.vertices[vertexIndex];
+          if (!vertex) continue;
+          vertex.x = round(vertex.x + deltaX);
+          vertex.y = round(vertex.y + deltaY);
+        }
+      }, !drag.mutated);
+      dragState.current = { ...drag, lastLocal: currentLocal, mutated: true };
+      return;
+    }
+
+    if (drag.kind === 'weightBrush') {
+      const changed = applyWeightBrushAtPoint(target, point, !drag.mutated);
+      if (changed) {
+        dragState.current = { ...drag, mutated: true };
+      }
+      return;
+    }
+
+    if (drag.kind === 'deformBrush') {
+      const currentLocal = canvasToAttachmentLocal(point, drag.transform);
+      const deltaX = (currentLocal.x - drag.lastLocal.x) * sanitizeBrushStrength(brushSettings.strength);
+      const deltaY = (currentLocal.y - drag.lastLocal.y) * sanitizeBrushStrength(brushSettings.strength);
+      if (Math.hypot(deltaX, deltaY) <= 0.000001) {
+        return;
+      }
+
+      const changed = applyDeformBrushAtPoint(target, point, deltaX, deltaY, !drag.mutated);
+      dragState.current = { ...drag, lastLocal: currentLocal, mutated: drag.mutated || changed };
+    }
   }
 
   function handlePointerUp(event: ReactPointerEvent<HTMLCanvasElement>) {
@@ -2516,6 +2822,113 @@ function CanvasPreview({
       dragState.current = null;
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+  }
+
+  function handlePointerLeave() {
+    if (!dragState.current) {
+      setHoverPoint(null);
+    }
+  }
+
+  function getActiveMeshTarget(targets: CanvasMeshTarget[]): CanvasMeshTarget | null {
+    if (!activeMeshName) {
+      return null;
+    }
+
+    return targets.find((target) => target.attachment.name === activeMeshName) ?? null;
+  }
+
+  function applyWeightBrushAtPoint(target: CanvasMeshTarget, point: Point2D, trackHistory: boolean): boolean {
+    const vertexFalloffs = collectBrushVertexFalloffs(target, point, sanitizeBrushRadius(brushSettings.radius));
+    if (vertexFalloffs.length === 0) {
+      return false;
+    }
+
+    let changed = false;
+    updateDocument((draft) => {
+      const mesh = findMeshAttachmentForEdit(draft, activeSkinName, target.attachment.name);
+      changed = applyWeightBrush(mesh, {
+        boneName: brushSettings.boneName,
+        vertexFalloffs,
+        strength: sanitizeBrushStrength(brushSettings.strength),
+        erase: brushSettings.eraseMode,
+        normalizeAfterPaint: brushSettings.normalizeAfterPaint
+      });
+    }, trackHistory);
+    return changed || vertexFalloffs.length > 0;
+  }
+
+  function applyDeformBrushAtPoint(target: CanvasMeshTarget, point: Point2D, deltaX: number, deltaY: number, trackHistory: boolean): boolean {
+    const vertexFalloffs = collectBrushVertexFalloffs(target, point, sanitizeBrushRadius(brushSettings.radius));
+    if (vertexFalloffs.length === 0) {
+      return false;
+    }
+
+    const currentAnimation = document.animations.find((candidate) => candidate.name === animationName);
+    const currentTimeline = currentAnimation?.deforms?.find((candidate) => (
+      candidate.slot === target.attachment.slot && candidate.attachment === target.attachment.name
+    ));
+    const willCreateKey = !currentTimeline || !currentTimeline.keys.some((candidate) => Math.abs(candidate.time - round(deformTime)) < 0.0001);
+    let changed = false;
+    updateDocument((draft) => {
+      const animation = draft.animations.find((candidate) => candidate.name === animationName);
+      if (!animation) {
+        return;
+      }
+
+      const mesh = findMeshAttachmentForEdit(draft, activeSkinName, target.attachment.name);
+      const result = getOrCreateDeformBrushKey(animation, mesh, deformTime);
+      changed = applyDeformBrush(result.key, vertexFalloffs, deltaX, deltaY);
+    }, trackHistory);
+
+    if (willCreateKey && trackHistory) {
+      setLocalizedStatus('canvas.deform.keyCreated');
+    }
+    return changed || vertexFalloffs.length > 0;
+  }
+
+  function getVisibleMeshTargets(): CanvasMeshTarget[] {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return [];
+    }
+
+    const frame = { width: canvas.width, height: canvas.height, view };
+    const animation = document.animations.find((candidate) => candidate.name === animationName);
+    const pose = previewMix ? sampleMixedDocumentPose(document, previewMix) : sampleDocumentPose(document, animationName, time);
+    const attachmentOverrides = previewMix ? sampleMixedAttachmentOverrides(document, previewMix) : sampleAttachmentOverrides(animation, time);
+    const slots = previewMix ? sampleMixedDrawOrder(document, previewMix) : sampleDrawOrder(document, animation, time);
+    const targets: CanvasMeshTarget[] = [];
+
+    for (const slot of slots) {
+      const override = attachmentOverrides.get(slot.name);
+      if (attachmentOverrides.has(slot.name) && !override) {
+        continue;
+      }
+
+      const attachment = attachmentOverrides.has(slot.name)
+        ? resolveExactSlotAttachment(document, activeSkinName, slot.name, override ?? '')
+        : resolveSlotAttachment(document, activeSkinName, slot.name, slot.attachment);
+      if (!attachment || attachment.type !== 'mesh') {
+        continue;
+      }
+
+      const bone = pose.get(slot.bone);
+      if (!bone) {
+        continue;
+      }
+
+      const deformOffsets = previewMix
+        ? sampleMixedDeformOffsets(document, previewMix, attachment.slot, attachment.name, attachment.vertices.length)
+        : sampleDeformOffsets(animation, attachment.slot, attachment.name, attachment.vertices.length, time);
+      targets.push({
+        attachment,
+        deformOffsets,
+        transform: getAttachmentCanvasTransform(bone, attachment, frame)
+      });
+    }
+
+    return targets;
   }
 
   function drawPreview() {
@@ -2579,7 +2992,18 @@ function CanvasPreview({
         const deformOffsets = previewMix
           ? sampleMixedDeformOffsets(document, previewMix, attachment.slot, attachment.name, attachment.vertices.length)
           : sampleDeformOffsets(animation, attachment.slot, attachment.name, attachment.vertices.length, time);
-        drawMeshPreview(context, attachment, image, unitScale, selection?.type === 'attachment' && selection.name === attachment.name, deformOffsets);
+        const highlightedVertices = selectedVertices?.attachment === attachment.name
+          ? new Set(selectedVertices.vertices)
+          : new Set<number>();
+        drawMeshPreview(
+          context,
+          attachment,
+          image,
+          unitScale,
+          selection?.type === 'attachment' && selection.name === attachment.name,
+          deformOffsets,
+          highlightedVertices
+        );
       }
       context.restore();
     }
@@ -2629,10 +3053,103 @@ function CanvasPreview({
       context.fillStyle = selection?.type === 'bone' && selection.name === bone.name ? '#f2b84b' : ikTargets.has(bone.name) ? '#e879f9' : '#1fb8a6';
       context.fill();
     }
+
+    if ((effectiveToolMode === 'weightBrush' || effectiveToolMode === 'deformBrush') && hoverPoint) {
+      context.save();
+      context.beginPath();
+      context.arc(hoverPoint.x, hoverPoint.y, sanitizeBrushRadius(brushSettings.radius), 0, Math.PI * 2);
+      context.strokeStyle = effectiveToolMode === 'weightBrush' ? '#e879f9' : '#f2b84b';
+      context.lineWidth = 1.5;
+      context.setLineDash([6, 4]);
+      context.stroke();
+      context.restore();
+    }
   }
 
   return (
     <div className="preview-frame">
+      <div className="canvas-tool-panel">
+        <div className="canvas-tool-header">
+          <span>{t('canvas.tool.current')}: {t(canvasToolTranslationKey(effectiveToolMode))}</span>
+          <span>
+            {selectedVertices?.vertices.length
+              ? t('canvas.vertex.selected', { count: selectedVertices.vertices.length })
+              : activeMeshName ? t('canvas.vertex.activeMesh', { name: activeMeshName }) : t('canvas.vertex.noMeshSelected')}
+          </span>
+        </div>
+        <div className="canvas-tool-buttons" role="group" aria-label={t('canvas.tool.current')}>
+          {canvasToolModes.map((mode) => (
+            <button
+              className={toolMode === mode ? 'active' : ''}
+              type="button"
+              key={mode}
+              onClick={() => setToolMode(mode)}
+              title={canvasToolShortcutLabel(mode)}
+            >
+              {t(canvasToolTranslationKey(mode))}
+            </button>
+          ))}
+        </div>
+        {(toolMode === 'weightBrush' || toolMode === 'deformBrush') && (
+          <div className="canvas-brush-grid">
+            {toolMode === 'weightBrush' && (
+              <label className="compact-field">
+                <span>{t('canvas.brush.bone')}</span>
+                <select
+                  value={brushSettings.boneName}
+                  onChange={(event) => setBrushSettings((current) => ({ ...current, boneName: event.target.value }))}
+                >
+                  {document.bones.map((bone) => (
+                    <option key={bone.name} value={bone.name}>{bone.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="compact-field">
+              <span>{t('canvas.brush.radius')}</span>
+              <input
+                type="number"
+                min={4}
+                max={240}
+                step={1}
+                value={sanitizeBrushRadius(brushSettings.radius)}
+                onChange={(event) => setBrushSettings((current) => ({ ...current, radius: sanitizeBrushRadius(toNumber(event.target.value, current.radius)) }))}
+              />
+            </label>
+            <label className="compact-field">
+              <span>{t('canvas.brush.strength')}</span>
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={sanitizeBrushStrength(brushSettings.strength)}
+                onChange={(event) => setBrushSettings((current) => ({ ...current, strength: sanitizeBrushStrength(toNumber(event.target.value, current.strength)) }))}
+              />
+            </label>
+            {toolMode === 'weightBrush' && (
+              <>
+                <label className="mini-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={brushSettings.normalizeAfterPaint}
+                    onChange={(event) => setBrushSettings((current) => ({ ...current, normalizeAfterPaint: event.target.checked }))}
+                  />
+                  <span>{t('canvas.brush.normalizeAfterPaint')}</span>
+                </label>
+                <label className="mini-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={brushSettings.eraseMode}
+                    onChange={(event) => setBrushSettings((current) => ({ ...current, eraseMode: event.target.checked }))}
+                  />
+                  <span>{t('canvas.brush.eraseMode')}</span>
+                </label>
+              </>
+            )}
+          </div>
+        )}
+      </div>
       <div className="preview-controls">
         <button type="button" onClick={resetView} title={t('preview.resetView')}>
           <RotateCcw size={15} />
@@ -2655,10 +3172,33 @@ function CanvasPreview({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
         onContextMenu={(event) => event.preventDefault()}
       />
     </div>
   );
+}
+
+function canvasToolTranslationKey(mode: CanvasToolMode): TranslationKey {
+  const keys: Record<CanvasToolMode, TranslationKey> = {
+    select: 'canvas.tool.select',
+    moveVertex: 'canvas.tool.moveVertex',
+    weightBrush: 'canvas.tool.weightBrush',
+    deformBrush: 'canvas.tool.deformBrush',
+    pan: 'canvas.tool.pan'
+  };
+  return keys[mode];
+}
+
+function canvasToolShortcutLabel(mode: CanvasToolMode): string {
+  const shortcuts: Record<CanvasToolMode, string> = {
+    select: 'V',
+    moveVertex: 'M',
+    weightBrush: 'W',
+    deformBrush: 'D',
+    pan: 'Space'
+  };
+  return shortcuts[mode];
 }
 
 function TimelineTransport({
@@ -2884,12 +3424,12 @@ function SelectedTimelineKeyInspector({
           </>
         )}
         {selection.type === 'boneRotate' && (
-          <NumberField label="Rotation" value={(key as Suwol2DRotateKey).rotation} onChange={(value) => setNumber('rotation', value)} />
+          <NumberField label={t('inspector.rotation')} value={(key as Suwol2DRotateKey).rotation} onChange={(value) => setNumber('rotation', value)} />
         )}
         {selection.type === 'boneScale' && (
           <>
-            <NumberField label="Scale X" value={(key as Suwol2DScaleKey).scaleX} onChange={(value) => setNumber('scaleX', value)} />
-            <NumberField label="Scale Y" value={(key as Suwol2DScaleKey).scaleY} onChange={(value) => setNumber('scaleY', value)} />
+            <NumberField label={t('inspector.scaleX')} value={(key as Suwol2DScaleKey).scaleX} onChange={(value) => setNumber('scaleX', value)} />
+            <NumberField label={t('inspector.scaleY')} value={(key as Suwol2DScaleKey).scaleY} onChange={(value) => setNumber('scaleY', value)} />
           </>
         )}
         {selection.type === 'attachment' && (
@@ -2948,22 +3488,23 @@ function AttachmentKeyInspector({
   setSelection: (selection: Selection) => void;
   updateSelectedKey: (updater: (key: ResolvedTimelineKey, draft: Suwol2DDocument) => void) => void;
 }) {
+  const { t } = useI18n();
   const attachments = getAttachmentsForSlot(document, activeSkinName, slotName);
   return (
     <>
       <label className="field-row">
-        <span>Attachment</span>
+        <span>{t('inspector.attachment')}</span>
         <select
           value={keyData.attachment ?? '__hide__'}
           onChange={(event) => updateSelectedKey((resolvedKey) => {
             (resolvedKey.key as Suwol2DAttachmentKey).attachment = event.target.value === '__hide__' ? null : event.target.value;
           })}
         >
-          <option value="__hide__">Hide</option>
+          <option value="__hide__">{t('common.hidden')}</option>
           {attachments.map((attachment) => <option key={attachment.name} value={attachment.name}>{attachment.name}</option>)}
         </select>
       </label>
-      <button className="wide-action" type="button" onClick={() => setSelection({ type: 'slot', name: slotName })}>Select Slot</button>
+      <button className="wide-action" type="button" onClick={() => setSelection({ type: 'slot', name: slotName })}>{t('inspector.selectSlot')}</button>
     </>
   );
 }
@@ -2977,11 +3518,12 @@ function DrawOrderKeyInspector({
   document: Suwol2DDocument;
   updateSelectedKey: (updater: (key: ResolvedTimelineKey, draft: Suwol2DDocument) => void) => void;
 }) {
+  const { t } = useI18n();
   return (
     <section className="draw-order-inspector">
       <button className="wide-action" type="button" onClick={() => updateSelectedKey((resolvedKey, draft) => {
         (resolvedKey.key as Suwol2DDrawOrderKey).slots = setupDrawOrderSlots(draft);
-      })}>Normalize To Setup</button>
+      })}>{t('inspector.normalizeToSetup')}</button>
       {keyData.slots.map((entry, index) => (
         <div className="draw-order-row" key={`${entry.slot}-${index}`}>
           <span>{entry.slot}</span>
@@ -2994,7 +3536,7 @@ function DrawOrderKeyInspector({
           </button>
         </div>
       ))}
-      {document.slots.length === 0 && <p>No slots in document.</p>}
+      {document.slots.length === 0 && <p>{t('timeline.noSlotsInDocument')}</p>}
     </section>
   );
 }
@@ -3008,6 +3550,7 @@ function SlotColorKeyInspector({
   setNumber: (property: string, value: number) => void;
   updateSelectedKey: (updater: (key: ResolvedTimelineKey, draft: Suwol2DDocument) => void) => void;
 }) {
+  const { t } = useI18n();
   const apply = (next: Omit<Suwol2DSlotColorKey, 'time'>) => updateSelectedKey((resolvedKey) => {
     const key = resolvedKey.key as Suwol2DSlotColorKey;
     key.r = next.r;
@@ -3023,9 +3566,9 @@ function SlotColorKeyInspector({
       <NumberField label="B" value={keyData.b} onChange={(value) => setNumber('b', value)} />
       <NumberField label="A" value={keyData.a} onChange={(value) => setNumber('a', value)} />
       <div className="inspector-action-row">
-        <button type="button" onClick={() => apply({ r: 1, g: 1, b: 1, a: 1 })}>White</button>
-        <button type="button" onClick={() => apply({ r: 1, g: 1, b: 1, a: 0.5 })}>Half Alpha</button>
-        <button type="button" onClick={() => apply({ r: 1, g: 1, b: 1, a: 0 })}>Hidden</button>
+        <button type="button" onClick={() => apply({ r: 1, g: 1, b: 1, a: 1 })}>{t('common.white')}</button>
+        <button type="button" onClick={() => apply({ r: 1, g: 1, b: 1, a: 0.5 })}>{t('timeline.halfAlpha')}</button>
+        <button type="button" onClick={() => apply({ r: 1, g: 1, b: 1, a: 0 })}>{t('common.hidden')}</button>
       </div>
     </>
   );
@@ -3038,13 +3581,14 @@ function EventKeyInspector({
   keyData: Suwol2DEventKey;
   updateSelectedKey: (updater: (key: ResolvedTimelineKey, draft: Suwol2DDocument) => void) => void;
 }) {
+  const { t } = useI18n();
   const setValue = (property: string, value: string | number) => updateSelectedKey((resolvedKey) => {
     (resolvedKey.key as unknown as Record<string, string | number | undefined>)[property] = value;
   });
 
   return (
     <>
-      <TextField label="Name" value={keyData.name} onChange={(value) => setValue('name', value)} />
+      <TextField label={t('inspector.name')} value={keyData.name} onChange={(value) => setValue('name', value)} />
       <NumberField label="Int" value={keyData.intValue ?? 0} onChange={(value) => setValue('intValue', Math.trunc(value))} />
       <NumberField label="Float" value={keyData.floatValue ?? 0} onChange={(value) => setValue('floatValue', value)} />
       <TextField label="String" value={keyData.stringValue ?? ''} onChange={(value) => setValue('stringValue', value)} />
@@ -3065,6 +3609,7 @@ function DeformKeyInspector({
   target: string;
   updateSelectedKey: (updater: (key: ResolvedTimelineKey, draft: Suwol2DDocument) => void) => void;
 }) {
+  const { t } = useI18n();
   const [slotName, attachmentName] = splitTimelineTarget(target);
   const attachment = findAttachmentForEdit(document, activeSkinName, attachmentName);
   const mesh = attachment?.type === 'mesh' ? attachment : undefined;
@@ -3076,14 +3621,14 @@ function DeformKeyInspector({
           const draftAttachment = findAttachmentForEdit(draft, activeSkinName, attachmentName);
           if (draftAttachment?.type !== 'mesh') return;
           (resolvedKey.key as Suwol2DDeformKey).offsets = createZeroDeformOffsets(draftAttachment.vertices.length);
-        })}>Reset Offsets</button>
+        })}>{t('timeline.resetOffsets')}</button>
         <button type="button" onClick={() => updateSelectedKey((resolvedKey) => {
           const key = resolvedKey.key as Suwol2DDeformKey;
           key.offsets = key.offsets.map((offset) => ({ ...offset, x: 0, y: 0 }));
-        })}>Zero Existing</button>
+        })}>{t('timeline.zeroExisting')}</button>
       </div>
-      <ReadonlyRow label="Slot" value={slotName} />
-      <ReadonlyRow label="Attachment" value={attachmentName} />
+      <ReadonlyRow label={t('inspector.slot')} value={slotName} />
+      <ReadonlyRow label={t('inspector.attachment')} value={attachmentName} />
       {mesh ? mesh.vertices.map((_, vertexIndex) => {
         const offset = findVertexOffset(keyData, vertexIndex);
         return (
@@ -3103,7 +3648,7 @@ function DeformKeyInspector({
             />
           </div>
         );
-      }) : <p>Mesh attachment is missing.</p>}
+      }) : <p>{t('timeline.meshAttachmentMissing')}</p>}
     </section>
   );
 }
@@ -3117,15 +3662,16 @@ function TimelineEditor({
   snapKeyTime: (value: number) => number;
   updateTimeline: (updater: (timeline: Suwol2DBoneTimeline) => void) => void;
 }) {
+  const { t } = useI18n();
   if (!timeline) {
-    return <p className="timeline-empty">Select a bone and add a key.</p>;
+    return <p className="timeline-empty">{t('timeline.selectBoneAndAddKey')}</p>;
   }
 
   return (
     <div className="key-grid">
-      <KeyGroup title="Translate" keys={timeline.translate} fields={['x', 'y']} updateTimeline={updateTimeline} kind="translate" snapKeyTime={snapKeyTime} />
-      <KeyGroup title="Rotate" keys={timeline.rotate} fields={['rotation']} updateTimeline={updateTimeline} kind="rotate" snapKeyTime={snapKeyTime} />
-      <KeyGroup title="Scale" keys={timeline.scale} fields={['scaleX', 'scaleY']} updateTimeline={updateTimeline} kind="scale" snapKeyTime={snapKeyTime} />
+      <KeyGroup title={t('timeline.translate')} keys={timeline.translate} fields={['x', 'y']} updateTimeline={updateTimeline} kind="translate" snapKeyTime={snapKeyTime} />
+      <KeyGroup title={t('timeline.rotate')} keys={timeline.rotate} fields={['rotation']} updateTimeline={updateTimeline} kind="rotate" snapKeyTime={snapKeyTime} />
+      <KeyGroup title={t('timeline.scale')} keys={timeline.scale} fields={['scaleX', 'scaleY']} updateTimeline={updateTimeline} kind="scale" snapKeyTime={snapKeyTime} />
     </div>
   );
 }
@@ -3145,10 +3691,11 @@ function KeyGroup({
   kind: KeyKind;
   snapKeyTime: (value: number) => number;
 }) {
+  const { t } = useI18n();
   return (
     <section className="key-group">
       <h3>{title}</h3>
-      {keys.length === 0 ? <p>No keys</p> : keys.map((key, index) => (
+      {keys.length === 0 ? <p>{t('timeline.noKeysShort')}</p> : keys.map((key, index) => (
         <div className="key-row" key={`${kind}-${index}`}>
           <NumberInline
             value={key.time}
@@ -3192,6 +3739,7 @@ function DeformTimelineEditor({
   snapKeyTime: (value: number) => number;
   updateDocument: (updater: (document: Suwol2DDocument) => void) => void;
 }) {
+  const { t } = useI18n();
   const [selectedKeyIndex, setSelectedKeyIndex] = useState(0);
 
   useEffect(() => {
@@ -3199,11 +3747,11 @@ function DeformTimelineEditor({
   }, [animation?.name, attachment?.name]);
 
   if (!animation) {
-    return <p className="timeline-empty">Select or create an animation to edit deform keys.</p>;
+    return <p className="timeline-empty">{t('timeline.selectAnimationForDeform')}</p>;
   }
 
   if (!attachment) {
-    return <p className="timeline-empty">Select a mesh attachment to edit deform keys.</p>;
+    return <p className="timeline-empty">{t('timeline.selectMeshAttachmentForDeform')}</p>;
   }
 
   const timeline = findDeformTimeline(animation, attachment);
@@ -3226,7 +3774,7 @@ function DeformTimelineEditor({
     <section className="deform-editor">
       <div className="deform-header">
         <div>
-          <strong>Deform</strong>
+          <strong>{t('timeline.deform')}</strong>
           <span>{attachment.slot} / {attachment.name}</span>
         </div>
         <div className="timeline-actions">
@@ -3238,7 +3786,7 @@ function DeformTimelineEditor({
               setSelectedKeyIndex(Math.max(0, nextIndex));
             })}
           >
-            Add Key
+            {t('timeline.addKey')}
           </button>
           <button
             type="button"
@@ -3247,7 +3795,7 @@ function DeformTimelineEditor({
               key.offsets = createZeroDeformOffsets(mesh.vertices.length);
             })}
           >
-            Reset Selected Deform Key
+            {t('timeline.resetSelectedDeformKey')}
           </button>
           <button
             type="button"
@@ -3257,7 +3805,7 @@ function DeformTimelineEditor({
               setSelectedKeyIndex(0);
             })}
           >
-            Clear Deform Timeline
+            {t('timeline.clearDeformTimeline')}
           </button>
           <button
             type="button"
@@ -3266,17 +3814,17 @@ function DeformTimelineEditor({
               key.offsets = createZeroDeformOffsets(mesh.vertices.length);
             })}
           >
-            Copy Setup Vertices As Zero Offsets
+            {t('timeline.copySetupVerticesAsZeroOffsets')}
           </button>
         </div>
       </div>
 
       {!timeline || timeline.keys.length === 0 ? (
-        <p className="timeline-empty">No deform keys for this mesh.</p>
+        <p className="timeline-empty">{t('timeline.noDeformKeysForMesh')}</p>
       ) : (
         <div className="deform-grid">
           <section className="key-group deform-key-list">
-            <h3>Keys</h3>
+            <h3>{t('timeline.keys')}</h3>
             {timeline.keys.map((key, index) => (
               <div className={index === clampedKeyIndex ? 'key-row deform-key-row selected' : 'key-row deform-key-row'} key={`deform-${index}`} onClick={() => setSelectedKeyIndex(index)}>
                 <NumberInline
@@ -3304,11 +3852,11 @@ function DeformTimelineEditor({
           </section>
 
           <section className="key-group deform-offset-list">
-            <h3>Offsets: Key {clampedKeyIndex}</h3>
+            <h3>{t('timeline.offsetsForKey', { key: clampedKeyIndex })}</h3>
             {selectedKey ? (
               <>
                 <div className="deform-offset-row deform-offset-header">
-                  <span>Vertex</span>
+                  <span>{t('mesh.vertices')}</span>
                   <span>X</span>
                   <span>Y</span>
                 </div>
@@ -3336,7 +3884,7 @@ function DeformTimelineEditor({
                 })}
               </>
             ) : (
-              <p>No selected deform key</p>
+              <p>{t('timeline.noSelectedDeformKey')}</p>
             )}
           </section>
         </div>
@@ -3364,6 +3912,7 @@ function AttachmentTimelineEditor({
   updateDocument: (updater: (document: Suwol2DDocument) => void) => void;
   setSelection: (selection: Selection) => void;
 }) {
+  const { t } = useI18n();
   const [slotName, setSlotName] = useState(selectedSlotName ?? document.slots[0]?.name ?? '');
   const resolvedSlotName = document.slots.some((slot) => slot.name === slotName) ? slotName : document.slots[0]?.name ?? '';
 
@@ -3376,11 +3925,11 @@ function AttachmentTimelineEditor({
   }, [document.slots, selectedSlotName, slotName]);
 
   if (!animation) {
-    return <p className="timeline-empty">Select or create an animation to edit attachment keys.</p>;
+    return <p className="timeline-empty">{t('timeline.selectAnimationForAttachment')}</p>;
   }
 
   if (!resolvedSlotName) {
-    return <p className="timeline-empty">Create a slot before editing attachment keys.</p>;
+    return <p className="timeline-empty">{t('timeline.createSlotBeforeAttachmentKeys')}</p>;
   }
 
   const timeline = findAttachmentTimeline(animation, resolvedSlotName);
@@ -3403,7 +3952,7 @@ function AttachmentTimelineEditor({
     <section className="v8-editor">
       <div className="v8-header">
         <div>
-          <strong>Attachment</strong>
+          <strong>{t('timeline.attachment')}</strong>
           <span>{resolvedSlotName}</span>
         </div>
         <div className="timeline-actions">
@@ -3422,7 +3971,7 @@ function AttachmentTimelineEditor({
               addOrReplaceAttachmentKey(draftTimeline, snapKeyTime(currentTime), defaultAttachment || null);
             })}
           >
-            Add Attachment Key
+            {t('timeline.addAttachmentKey')}
           </button>
           <button
             type="button"
@@ -3430,15 +3979,15 @@ function AttachmentTimelineEditor({
               addOrReplaceAttachmentKey(draftTimeline, snapKeyTime(currentTime), null);
             })}
           >
-            Add Hide Key
+            {t('timeline.addHideKey')}
           </button>
         </div>
       </div>
       {!timeline || timeline.keys.length === 0 ? (
-        <p className="timeline-empty">No attachment keys for this slot.</p>
+        <p className="timeline-empty">{t('timeline.noAttachmentKeysForSlot')}</p>
       ) : (
         <section className="key-group v8-list">
-          <h3>Keys</h3>
+          <h3>{t('timeline.keys')}</h3>
           {timeline.keys.map((key, index) => (
             <div className="key-row v8-key-row attachment-key-row" key={`attachment-${resolvedSlotName}-${index}`}>
               <NumberInline
@@ -3453,7 +4002,7 @@ function AttachmentTimelineEditor({
                   draftTimeline.keys[index].attachment = event.target.value === '__hide__' ? null : event.target.value;
                 })}
               >
-                <option value="__hide__">Hide</option>
+                <option value="__hide__">{t('common.hidden')}</option>
                 {attachments.map((attachment) => (
                   <option key={attachment.name} value={attachment.name}>{attachment.name}</option>
                 ))}
@@ -3482,6 +4031,7 @@ function DrawOrderTimelineEditor({
   snapKeyTime: (value: number) => number;
   updateDocument: (updater: (document: Suwol2DDocument) => void) => void;
 }) {
+  const { t } = useI18n();
   const [selectedKeyIndex, setSelectedKeyIndex] = useState(0);
 
   useEffect(() => {
@@ -3489,7 +4039,7 @@ function DrawOrderTimelineEditor({
   }, [animation?.name]);
 
   if (!animation) {
-    return <p className="timeline-empty">Select or create an animation to edit draw order keys.</p>;
+    return <p className="timeline-empty">{t('timeline.selectAnimationForDrawOrder')}</p>;
   }
 
   const keys = [...(animation.drawOrders ?? [])].sort(sortByTime);
@@ -3510,8 +4060,8 @@ function DrawOrderTimelineEditor({
     <section className="v8-editor">
       <div className="v8-header">
         <div>
-          <strong>Draw Order</strong>
-          <span>{keys.length} key(s)</span>
+          <strong>{t('timeline.drawOrder')}</strong>
+          <span>{t('timeline.keyCount', { count: keys.length })}</span>
         </div>
         <div className="timeline-actions">
           <button
@@ -3521,7 +4071,7 @@ function DrawOrderTimelineEditor({
               setSelectedKeyIndex(draftKeys.findIndex((candidate) => candidate === key));
             })}
           >
-            Add Draw Order Key at Current Time
+            {t('timeline.addDrawOrderKeyAtCurrentTime')}
           </button>
           <button
             type="button"
@@ -3530,16 +4080,16 @@ function DrawOrderTimelineEditor({
               key.slots = setupDrawOrderSlots(document);
             })}
           >
-            Reset To Setup
+            {t('timeline.resetToSetup')}
           </button>
         </div>
       </div>
       {keys.length === 0 ? (
-        <p className="timeline-empty">No draw order keys.</p>
+        <p className="timeline-empty">{t('timeline.noDrawOrderKeys')}</p>
       ) : (
         <div className="deform-grid">
           <section className="key-group deform-key-list">
-            <h3>Keys</h3>
+            <h3>{t('timeline.keys')}</h3>
             {keys.map((key, index) => (
               <div
                 className={index === clampedKeyIndex ? 'key-row deform-key-row selected' : 'key-row deform-key-row'}
@@ -3569,7 +4119,7 @@ function DrawOrderTimelineEditor({
             ))}
           </section>
           <section className="key-group deform-offset-list">
-            <h3>Slot Order</h3>
+            <h3>{t('timeline.slotOrder')}</h3>
             {selectedKey?.slots.map((entry, slotIndex) => (
               <div className="draw-order-row" key={`${selectedKey.time}-${entry.slot}`}>
                 <span>{entry.slot}</span>
@@ -3606,6 +4156,7 @@ function SlotColorTimelineEditor({
   updateDocument: (updater: (document: Suwol2DDocument) => void) => void;
   setSelection: (selection: Selection) => void;
 }) {
+  const { t } = useI18n();
   const [slotName, setSlotName] = useState(selectedSlotName ?? document.slots[0]?.name ?? '');
   const resolvedSlotName = document.slots.some((slot) => slot.name === slotName) ? slotName : document.slots[0]?.name ?? '';
 
@@ -3618,11 +4169,11 @@ function SlotColorTimelineEditor({
   }, [document.slots, selectedSlotName, slotName]);
 
   if (!animation) {
-    return <p className="timeline-empty">Select or create an animation to edit slot color keys.</p>;
+    return <p className="timeline-empty">{t('timeline.selectAnimationForSlotColor')}</p>;
   }
 
   if (!resolvedSlotName) {
-    return <p className="timeline-empty">Create a slot before editing slot color keys.</p>;
+    return <p className="timeline-empty">{t('timeline.createSlotBeforeSlotColorKeys')}</p>;
   }
 
   const timeline = findSlotTimeline(animation, resolvedSlotName);
@@ -3654,7 +4205,7 @@ function SlotColorTimelineEditor({
     <section className="v8-editor">
       <div className="v8-header">
         <div>
-          <strong>Slot Color</strong>
+          <strong>{t('timeline.slotColor')}</strong>
           <span>{resolvedSlotName}</span>
         </div>
         <div className="timeline-actions">
@@ -3667,18 +4218,18 @@ function SlotColorTimelineEditor({
           >
             {document.slots.map((slot) => <option key={slot.name} value={slot.name}>{slot.name}</option>)}
           </select>
-          <button type="button" onClick={() => updateTimeline((draftTimeline) => { addOrReplaceSlotColorKey(draftTimeline, snapKeyTime(currentTime)); })}>Add Color Key</button>
-          <button type="button" onClick={() => applyQuickColor(undefined, { r: 1, g: 1, b: 1, a: 1 })}>White</button>
-          <button type="button" onClick={() => applyQuickColor(undefined, { r: 1, g: 1, b: 1, a: 0.5 })}>Half Alpha</button>
-          <button type="button" onClick={() => applyQuickColor(undefined, { r: 1, g: 1, b: 1, a: 0 })}>Hidden Alpha</button>
-          <button type="button" onClick={() => updateTimeline((draftTimeline) => { draftTimeline.color = []; })}>Reset</button>
+          <button type="button" onClick={() => updateTimeline((draftTimeline) => { addOrReplaceSlotColorKey(draftTimeline, snapKeyTime(currentTime)); })}>{t('timeline.addColorKey')}</button>
+          <button type="button" onClick={() => applyQuickColor(undefined, { r: 1, g: 1, b: 1, a: 1 })}>{t('common.white')}</button>
+          <button type="button" onClick={() => applyQuickColor(undefined, { r: 1, g: 1, b: 1, a: 0.5 })}>{t('timeline.halfAlpha')}</button>
+          <button type="button" onClick={() => applyQuickColor(undefined, { r: 1, g: 1, b: 1, a: 0 })}>{t('timeline.hiddenAlpha')}</button>
+          <button type="button" onClick={() => updateTimeline((draftTimeline) => { draftTimeline.color = []; })}>{t('common.reset')}</button>
         </div>
       </div>
       {!timeline || (timeline.color ?? []).length === 0 ? (
-        <p className="timeline-empty">No slot color keys.</p>
+        <p className="timeline-empty">{t('timeline.noSlotColorKeys')}</p>
       ) : (
         <section className="key-group v8-list">
-          <h3>Keys</h3>
+          <h3>{t('timeline.keys')}</h3>
           {(timeline.color ?? []).map((key, index) => (
             <div className="key-row v8-key-row slot-color-key-row" key={`slot-color-${resolvedSlotName}-${index}`}>
               <NumberInline value={key.time} onChange={(value) => updateTimeline((draftTimeline) => { (draftTimeline.color ?? [])[index].time = snapKeyTime(value); })} />
@@ -3686,8 +4237,8 @@ function SlotColorTimelineEditor({
               <NumberInline value={key.g} onChange={(value) => updateTimeline((draftTimeline) => { (draftTimeline.color ?? [])[index].g = value; })} />
               <NumberInline value={key.b} onChange={(value) => updateTimeline((draftTimeline) => { (draftTimeline.color ?? [])[index].b = value; })} />
               <NumberInline value={key.a} onChange={(value) => updateTimeline((draftTimeline) => { (draftTimeline.color ?? [])[index].a = value; })} />
-              <button type="button" onClick={() => applyQuickColor(key, { r: 1, g: 1, b: 1, a: 1 })}>White</button>
-              <button type="button" onClick={() => applyQuickColor(key, { r: 1, g: 1, b: 1, a: 0.5 })}>Half</button>
+              <button type="button" onClick={() => applyQuickColor(key, { r: 1, g: 1, b: 1, a: 1 })}>{t('common.white')}</button>
+              <button type="button" onClick={() => applyQuickColor(key, { r: 1, g: 1, b: 1, a: 0.5 })}>{t('timeline.half')}</button>
               <button type="button" onClick={() => updateTimeline((draftTimeline) => { draftTimeline.color?.splice(index, 1); })}>
                 <Trash2 size={13} />
               </button>
@@ -3710,8 +4261,9 @@ function EventTimelineEditor({
   snapKeyTime: (value: number) => number;
   updateDocument: (updater: (document: Suwol2DDocument) => void) => void;
 }) {
+  const { t } = useI18n();
   if (!animation) {
-    return <p className="timeline-empty">Select or create an animation to edit events.</p>;
+    return <p className="timeline-empty">{t('timeline.selectAnimationForEvents')}</p>;
   }
 
   const events = [...(animation.events ?? [])].sort(sortByTime);
@@ -3729,18 +4281,18 @@ function EventTimelineEditor({
     <section className="v8-editor">
       <div className="v8-header">
         <div>
-          <strong>Events</strong>
-          <span>{events.length} key(s)</span>
+          <strong>{t('timeline.events')}</strong>
+          <span>{t('timeline.keyCount', { count: events.length })}</span>
         </div>
         <div className="timeline-actions">
-          <button type="button" onClick={() => updateEvents((draftEvents) => { addEventKey(draftEvents, snapKeyTime(currentTime)); })}>Add Event Key</button>
+          <button type="button" onClick={() => updateEvents((draftEvents) => { addEventKey(draftEvents, snapKeyTime(currentTime)); })}>{t('timeline.addEventKey')}</button>
         </div>
       </div>
       {events.length === 0 ? (
-        <p className="timeline-empty">No event keys.</p>
+        <p className="timeline-empty">{t('timeline.noEventKeys')}</p>
       ) : (
         <section className="key-group v8-list">
-          <h3>Event List</h3>
+          <h3>{t('timeline.eventList')}</h3>
           {events.map((eventKey, index) => (
             <div className="key-row v8-key-row event-key-row" key={`event-${index}`}>
               <NumberInline value={eventKey.time} onChange={(value) => updateEvents((draftEvents) => { draftEvents[index].time = snapKeyTime(value); })} />
@@ -3862,6 +4414,7 @@ function MeshAttachmentFields({
   activeSkinName: string;
   updateDocument: (updater: (document: Suwol2DDocument) => void) => void;
 }) {
+  const { t } = useI18n();
   const [selectedVertex, setSelectedVertex] = useState(0);
   const image = images.find((candidate) => candidate.name === attachment.image);
   const clampedVertex = Math.max(0, Math.min(selectedVertex, Math.max(0, attachment.vertices.length - 1)));
@@ -3877,7 +4430,7 @@ function MeshAttachmentFields({
           removeDeformTimelinesForAttachment(draft, attachment.name);
         })}
       >
-        Reset Quad Mesh
+        {t('mesh.resetQuadMesh')}
       </button>
       <div className="mesh-action-row">
         <button
@@ -3888,7 +4441,7 @@ function MeshAttachmentFields({
             normalizeVertexWeight(mesh, clampedVertex);
           })}
         >
-          Normalize Selected Vertex
+          {t('mesh.normalizeSelectedVertex')}
         </button>
         <button
           className="wide-action"
@@ -3897,7 +4450,7 @@ function MeshAttachmentFields({
             normalizeAllVertexWeights(findMeshAttachmentForEdit(draft, activeSkinName, attachment.name));
           })}
         >
-          Normalize All Vertices
+          {t('mesh.normalizeAllVertices')}
         </button>
       </div>
       <div className="mesh-action-row">
@@ -3908,7 +4461,7 @@ function MeshAttachmentFields({
             findMeshAttachmentForEdit(draft, activeSkinName, attachment.name).weights = undefined;
           })}
         >
-          Clear Weights
+          {t('mesh.clearWeights')}
         </button>
         <button
           className="wide-action"
@@ -3919,10 +4472,10 @@ function MeshAttachmentFields({
             autoRigidWeights(mesh, slot?.bone ?? draft.bones[0]?.name ?? '');
           })}
         >
-          Auto Rigid Weights
+          {t('mesh.autoRigidWeights')}
         </button>
       </div>
-      <h3>Vertices</h3>
+      <h3>{t('mesh.vertices')}</h3>
       <div className="mesh-row mesh-row-header">
         <span>X</span>
         <span>Y</span>
@@ -3943,7 +4496,7 @@ function MeshAttachmentFields({
           ))}
         </div>
       ))}
-      <h3>Weights: Vertex {clampedVertex}</h3>
+      <h3>{t('mesh.weightsForVertex', { vertex: clampedVertex })}</h3>
       <button
         className="wide-action"
         type="button"
@@ -3952,7 +4505,7 @@ function MeshAttachmentFields({
           addBoneWeight(mesh, clampedVertex, firstAvailableBone(document, selectedWeight?.bones ?? []));
         })}
       >
-        Add Weight
+        {t('mesh.addWeight')}
       </button>
       {selectedWeight && selectedWeight.bones.length > 0 ? selectedWeight.bones.map((boneWeight, weightIndex) => (
         <div className="weight-row" key={`${clampedVertex}-${weightIndex}`}>
@@ -3989,9 +4542,9 @@ function MeshAttachmentFields({
           </button>
         </div>
       )) : (
-        <p className="mesh-note">No weights for this vertex. It uses rigid fallback in Unity.</p>
+        <p className="mesh-note">{t('mesh.noWeightsForVertex')}</p>
       )}
-      <h3>Triangles</h3>
+      <h3>{t('mesh.triangles')}</h3>
       {chunkTriangleIndices(attachment.triangles).map((triangle, triangleIndex) => (
         <div className="mesh-row triangle-row" key={`triangle-${triangleIndex}`}>
           {triangle.map((value, cornerIndex) => (
@@ -4977,7 +5530,8 @@ function drawMeshPreview(
   image: HTMLImageElement | undefined,
   unitScale: number,
   selected: boolean,
-  deformOffsets: Array<{ x: number; y: number }> = []
+  deformOffsets: Array<{ x: number; y: number }> = [],
+  selectedVertices: Set<number> = new Set()
 ) {
   const vertices = getDeformedPreviewVertices(attachment, deformOffsets);
   const bounds = getMeshBounds(vertices);
@@ -5017,10 +5571,16 @@ function drawMeshPreview(
   const weightedVertices = new Set((attachment.weights ?? []).map((weight) => weight.vertex));
   for (let index = 0; index < vertices.length; index += 1) {
     const vertex = vertices[index];
+    const vertexSelected = selectedVertices.has(index);
     context.beginPath();
-    context.arc(vertex.x * unitScale, -vertex.y * unitScale, selected ? 5 : 4, 0, Math.PI * 2);
-    context.fillStyle = weightedVertices.has(index) ? '#e879f9' : selected ? '#f2b84b' : '#1fb8a6';
+    context.arc(vertex.x * unitScale, -vertex.y * unitScale, vertexSelected ? 7 : selected ? 5 : 4, 0, Math.PI * 2);
+    context.fillStyle = vertexSelected ? '#f2b84b' : weightedVertices.has(index) ? '#e879f9' : selected ? '#f2b84b' : '#1fb8a6';
     context.fill();
+    if (vertexSelected) {
+      context.lineWidth = 2;
+      context.strokeStyle = '#ffffff';
+      context.stroke();
+    }
   }
 }
 
@@ -5152,7 +5712,7 @@ function normalizeSelection(selection: Selection | null, document: Suwol2DDocume
   }
 
   if (selection.type === 'meshVertex') {
-    const attachment = findAttachmentForEdit(document, defaultSkinName, selection.attachment);
+    const attachment = collectSkinAttachments(document).find((candidate) => candidate.name === selection.attachment);
     return attachment?.type === 'mesh' && selection.vertex >= 0 && selection.vertex < attachment.vertices.length
       ? selection
       : null;

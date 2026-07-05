@@ -39,5 +39,5 @@ Editor.
   repository.
 - No Spine runtime, importer, exporter, compatibility claim, trademark asset,
   or third-party Spine implementation is included.
-- Generated placeholder icons under `assets/brand/` and `build/` are original
-  project assets for this repository.
+- Application icons under `assets/brand/` and `build/` are original project
+  assets for this repository.
