@@ -3,11 +3,21 @@ import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs
 import { basename, dirname, extname, join, parse, relative, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { nativeImage } from 'electron';
-import type { ImportedImage, Suwol2DDocument } from '../../shared/suwol2d-format';
+import type { ImportedImage, Suwol2DAtlas, Suwol2DAtlasExportOptions, Suwol2DDocument } from '../../shared/suwol2d-format';
 import { createId, normalizeImageName } from '../../shared/ids';
 import { collectSkinAttachments } from '../../shared/skins.ts';
+import { packAtlasImages, type AtlasSourceImage } from '../atlas/atlas-packer';
+import { readPngImageSize } from '../atlas/image-size';
+import { writeAtlasPng } from '../atlas/png-compositor';
 
 const imageExtensions = new Set(['.png', '.jpg', '.jpeg']);
+
+export interface ExportAtlasResult {
+  atlas: Suwol2DAtlas;
+  atlasImagePath: string;
+  atlasJsonPath: string;
+  skippedImageNames: string[];
+}
 
 export function getFocusedWindow(): BrowserWindow | undefined {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
@@ -161,11 +171,7 @@ export async function copyExportTextures(
   importedImages: ImportedImage[],
   document: Suwol2DDocument
 ): Promise<string[]> {
-  const referencedImages = new Set(
-    [...document.attachments, ...collectSkinAttachments(document)]
-      .filter((attachment) => (attachment.type === 'region' || attachment.type === 'mesh') && attachment.image)
-      .map((attachment) => normalizeLookupName(attachment.image))
-  );
+  const referencedImages = collectReferencedImageNames(document);
 
   if (referencedImages.size === 0 || importedImages.length === 0) {
     return [];
@@ -197,6 +203,87 @@ export async function copyExportTextures(
   }
 
   return copiedPaths;
+}
+
+export async function createExportAtlas(
+  projectPath: string,
+  exportPath: string,
+  importedImages: ImportedImage[],
+  document: Suwol2DDocument,
+  options: Suwol2DAtlasExportOptions
+): Promise<ExportAtlasResult | null> {
+  const referencedImages = collectReferencedImageNames(document);
+  if (!options.createAtlas || referencedImages.size === 0 || importedImages.length === 0) {
+    return null;
+  }
+
+  const atlasSources: AtlasSourceImage[] = [];
+  const skippedImageNames: string[] = [];
+  const seen = new Set<string>();
+
+  for (const image of importedImages) {
+    const candidates = [
+      image.name,
+      image.fileName,
+      image.relativePath
+    ].map(normalizeLookupName);
+
+    const referencedName = candidates.find((candidate) => referencedImages.has(candidate));
+    if (!referencedName || seen.has(referencedName)) {
+      continue;
+    }
+
+    if (extname(image.fileName).toLowerCase() !== '.png') {
+      skippedImageNames.push(image.fileName);
+      continue;
+    }
+
+    const sourcePath = join(projectPath, image.relativePath);
+    if (!existsSync(sourcePath)) {
+      skippedImageNames.push(image.fileName);
+      continue;
+    }
+
+    const size = await readPngImageSize(sourcePath);
+    atlasSources.push({
+      name: referencedName,
+      sourcePath,
+      width: size.width,
+      height: size.height
+    });
+    seen.add(referencedName);
+  }
+
+  if (atlasSources.length === 0) {
+    return null;
+  }
+
+  const atlasFolder = join(dirname(exportPath), 'Atlas');
+  await mkdir(atlasFolder, { recursive: true });
+
+  const atlasName = sanitizeFileName(options.atlasName || parse(exportPath).name || document.name || 'character');
+  const atlasImageFileName = `${atlasName}.atlas.png`;
+  const atlasJsonFileName = `${atlasName}.atlas.json`;
+  const atlasImagePath = join(atlasFolder, atlasImageFileName);
+  const atlasJsonPath = join(atlasFolder, atlasJsonFileName);
+  const atlasImageReference = toPortablePath(join('Atlas', atlasImageFileName));
+
+  const packedAtlas = packAtlasImages(atlasSources, {
+    name: atlasName,
+    image: atlasImageReference,
+    maxSize: options.atlasMaxSize,
+    padding: options.atlasPadding
+  });
+
+  await writeAtlasPng(packedAtlas, atlasImagePath);
+  await writeJsonFile(atlasJsonPath, packedAtlas.atlas);
+
+  return {
+    atlas: packedAtlas.atlas,
+    atlasImagePath,
+    atlasJsonPath,
+    skippedImageNames
+  };
 }
 
 export async function copySampleTextureToProject(projectPath: string, textureName: string, sampleFolder = 'RuntimeMvp'): Promise<ImportedImage> {
@@ -248,6 +335,14 @@ function toPortablePath(value: string): string {
 function normalizeLookupName(value: string): string {
   const fileName = value.replace(/\\/g, '/').split('/').pop() ?? value;
   return fileName.replace(/\.[^.]+$/, '').toLowerCase();
+}
+
+function collectReferencedImageNames(document: Suwol2DDocument): Set<string> {
+  return new Set(
+    [...document.attachments, ...collectSkinAttachments(document)]
+      .filter((attachment) => (attachment.type === 'region' || attachment.type === 'mesh') && attachment.image)
+      .map((attachment) => normalizeLookupName(attachment.image))
+  );
 }
 
 function createBackupTimestamp(date: Date): string {

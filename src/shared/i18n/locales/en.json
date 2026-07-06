@@ -161,6 +161,7 @@
     "exportCompletedWithDebug": "Export completed: {{path}}. Debug JSON: {{debugPath}}. {{textures}}{{warnings}}",
     "texturesCopied": "Textures: {{textures}}.",
     "noTexturesCopied": "No textures copied.",
+    "atlasCreated": "Atlas: {{files}}.",
     "warningCount": "{{count}} warning(s).",
     "undo": "Undo.",
     "redo": "Redo.",
@@ -179,7 +180,13 @@
     "successTitle": "Export Complete",
     "createdFiles": "Created Files",
     "nextSteps": "Copy the .suwol2d file and Textures folder into a Unity project.",
-    "textureCopied": "{{count}} textures copied."
+    "textureCopied": "{{count}} textures copied.",
+    "atlasOptions": "Atlas export options",
+    "createAtlas": "Atlas",
+    "atlasName": "Atlas Name",
+    "atlasMaxSize": "Max Size",
+    "atlasPadding": "Padding",
+    "atlasCreated": "Atlas created."
   },
   "validation": {
     "exportBlocked": "Export Blocked",
@@ -205,6 +212,8 @@
     "meshTriangleOutOfRange": "Mesh attachment '{{name}}' has triangle index outside vertex range.",
     "meshWeightOutOfRange": "Mesh attachment '{{name}}' has weight for vertex outside range.",
     "meshWeightMissingBone": "Mesh attachment '{{name}}' references missing weight bone '{{bone}}'.",
+    "atlasRegionOutOfBounds": "Atlas region '{{region}}' is outside atlas '{{atlas}}'.",
+    "duplicateAtlasRegion": "Duplicate atlas region: {{region}}",
     "stateMachineMissingAnimation": "State machine '{{machine}}' state '{{state}}' references missing animation '{{animation}}'.",
     "ikMissingBone": "IK constraint '{{constraint}}' references missing {{role}} bone '{{bone}}'."
   },

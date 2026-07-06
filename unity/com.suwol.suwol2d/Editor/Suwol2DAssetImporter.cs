@@ -271,6 +271,83 @@ namespace Suwol.Suwol2D.Editor
             ValidateV8Timelines(data, attachmentsByName, slotNames, warnings, errors);
             ValidateIk(data, boneNames, errors);
             ValidateStateMachines(data, CollectAnimationNameSet(data), warnings, errors);
+            ValidateAtlases(data, warnings, errors);
+        }
+
+        private static void ValidateAtlases(Suwol2DAssetData data, List<string> warnings, List<string> errors)
+        {
+            if (data == null || data.atlases == null)
+            {
+                return;
+            }
+
+            var atlasNames = new HashSet<string>();
+            for (var atlasIndex = 0; atlasIndex < data.atlases.Length; atlasIndex++)
+            {
+                var atlas = data.atlases[atlasIndex];
+                if (atlas == null)
+                {
+                    continue;
+                }
+
+                var atlasName = string.IsNullOrEmpty(atlas.name) ? "(unnamed)" : atlas.name;
+                if (string.IsNullOrEmpty(atlas.name))
+                {
+                    errors.Add("Atlas has an empty name.");
+                }
+                else if (!atlasNames.Add(atlas.name))
+                {
+                    errors.Add("Duplicate atlas name: " + atlas.name);
+                }
+
+                if (string.IsNullOrEmpty(atlas.image))
+                {
+                    errors.Add("Atlas '" + atlasName + "' has no image.");
+                }
+
+                if (atlas.width <= 0 || atlas.height <= 0)
+                {
+                    errors.Add("Atlas '" + atlasName + "' has invalid dimensions.");
+                }
+
+                var regionNames = new HashSet<string>();
+                var regions = atlas.regions ?? new Suwol2DAtlasRegionData[0];
+                for (var regionIndex = 0; regionIndex < regions.Length; regionIndex++)
+                {
+                    var region = regions[regionIndex];
+                    if (region == null)
+                    {
+                        continue;
+                    }
+
+                    var regionName = string.IsNullOrEmpty(region.name) ? "(unnamed)" : region.name;
+                    if (string.IsNullOrEmpty(region.name))
+                    {
+                        errors.Add("Atlas '" + atlasName + "' has a region with an empty name.");
+                    }
+                    else if (!regionNames.Add(region.name))
+                    {
+                        errors.Add("Atlas '" + atlasName + "' has duplicate region '" + region.name + "'.");
+                    }
+
+                    if (region.x < 0 || region.y < 0 || region.width <= 0 || region.height <= 0 ||
+                        region.x + region.width > atlas.width || region.y + region.height > atlas.height)
+                    {
+                        errors.Add("Atlas '" + atlasName + "' region '" + regionName + "' is outside atlas bounds.");
+                    }
+
+                    if (!IsUnitRange(region.u) || !IsUnitRange(region.v) || !IsUnitRange(region.u2) || !IsUnitRange(region.v2) ||
+                        region.u2 <= region.u || region.v2 <= region.v)
+                    {
+                        errors.Add("Atlas '" + atlasName + "' region '" + regionName + "' has invalid UV range.");
+                    }
+                }
+
+                if (regions.Length == 0)
+                {
+                    warnings.Add("Atlas '" + atlasName + "' has no regions.");
+                }
+            }
         }
 
         private static void ValidateBoneAnimationTimelines(
@@ -1011,12 +1088,18 @@ namespace Suwol.Suwol2D.Editor
             return !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
+        private static bool IsUnitRange(float value)
+        {
+            return IsFinite(value) && value >= 0f && value <= 1f;
+        }
+
         private static Texture2D[] FindTextures(AssetImportContext ctx, Suwol2DAssetData data, List<string> warnings, Suwol2DImportReport report)
         {
             var foundTextures = new List<Texture2D>();
             var foundNames = new List<string>();
             var missingNames = new List<string>();
             var imageNames = CollectImageNames(data);
+            AddUniqueImageNames(imageNames, CollectAtlasImageNames(data));
 
             for (var i = 0; i < imageNames.Count; i++)
             {
@@ -1053,8 +1136,12 @@ namespace Suwol.Suwol2D.Editor
                 baseDirectory,
                 CombineAssetPath(baseDirectory, "Textures"),
                 CombineAssetPath(baseDirectory, "textures"),
+                CombineAssetPath(baseDirectory, "Atlas"),
+                CombineAssetPath(baseDirectory, "atlas"),
                 CombineAssetPath(parentDirectory, "Textures"),
-                CombineAssetPath(parentDirectory, "textures")
+                CombineAssetPath(parentDirectory, "textures"),
+                CombineAssetPath(parentDirectory, "Atlas"),
+                CombineAssetPath(parentDirectory, "atlas")
             };
 
             var fileNames = BuildTextureFileNameCandidates(imageName);
@@ -1155,6 +1242,55 @@ namespace Suwol.Suwol2D.Editor
             }
 
             return names;
+        }
+
+        private static List<string> CollectAtlasImageNames(Suwol2DAssetData data)
+        {
+            var names = new List<string>();
+            var normalizedNames = new HashSet<string>();
+            if (data == null || data.atlases == null)
+            {
+                return names;
+            }
+
+            for (var i = 0; i < data.atlases.Length; i++)
+            {
+                var atlas = data.atlases[i];
+                if (atlas == null || string.IsNullOrEmpty(atlas.image))
+                {
+                    continue;
+                }
+
+                var normalized = NormalizeTextureName(atlas.image);
+                if (normalizedNames.Add(normalized))
+                {
+                    names.Add(atlas.image);
+                }
+            }
+
+            return names;
+        }
+
+        private static void AddUniqueImageNames(List<string> target, List<string> additions)
+        {
+            if (target == null || additions == null)
+            {
+                return;
+            }
+
+            var normalizedNames = new HashSet<string>();
+            for (var i = 0; i < target.Count; i++)
+            {
+                normalizedNames.Add(NormalizeTextureName(target[i]));
+            }
+
+            for (var i = 0; i < additions.Count; i++)
+            {
+                if (normalizedNames.Add(NormalizeTextureName(additions[i])))
+                {
+                    target.Add(additions[i]);
+                }
+            }
         }
 
         private static int CountAttachments(Suwol2DAssetData data)
@@ -1418,10 +1554,14 @@ namespace Suwol.Suwol2D.Editor
                 normalized = normalized.Substring(slashIndex + 1);
             }
 
-            var dotIndex = normalized.LastIndexOf('.');
-            if (dotIndex > 0)
+            var lower = normalized.ToLowerInvariant();
+            if (lower.EndsWith(".png") || lower.EndsWith(".jpg") || lower.EndsWith(".jpeg"))
             {
-                normalized = normalized.Substring(0, dotIndex);
+                var dotIndex = normalized.LastIndexOf('.');
+                if (dotIndex > 0)
+                {
+                    normalized = normalized.Substring(0, dotIndex);
+                }
             }
 
             return normalized.ToLowerInvariant();

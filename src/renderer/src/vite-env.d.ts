@@ -1,18 +1,20 @@
 /// <reference types="vite/client" />
 
-import type { HydratedProjectResult, ImportedImage, Suwol2DProjectFile } from '../../shared/suwol2d-format';
+import type { HydratedProjectResult, ImportedImage, Suwol2DAtlasExportOptions, Suwol2DProjectFile } from '../../shared/suwol2d-format';
 import type { AppSettings } from '../../shared/app-settings';
 import type { LocaleCode } from '../../shared/i18n/types';
 
 export interface ExportJsonResult {
   exportPath: string;
   texturePaths: string[];
+  atlasPaths: string[];
 }
 
 export interface ExportSuwol2DAssetResult {
   exportPath: string;
   debugJsonPath: string;
   texturePaths: string[];
+  atlasPaths: string[];
 }
 
 export type UnsavedChangesChoice = 'save' | 'discard' | 'cancel';
@@ -34,8 +36,8 @@ export interface SuwolPreloadApi {
     createSampleAssets(projectFilePath: string): Promise<ImportedImage[]>;
     createSkinSampleAssets(projectFilePath: string): Promise<ImportedImage[]>;
     createAnimationTimelinesSampleAssets(projectFilePath: string): Promise<ImportedImage[]>;
-    exportSuwol2DJson(projectFilePath: string, project: Suwol2DProjectFile): Promise<ExportJsonResult | null>;
-    exportSuwol2DAsset(projectFilePath: string, project: Suwol2DProjectFile): Promise<ExportSuwol2DAssetResult | null>;
+    exportSuwol2DJson(projectFilePath: string, project: Suwol2DProjectFile, options: Suwol2DAtlasExportOptions): Promise<ExportJsonResult | null>;
+    exportSuwol2DAsset(projectFilePath: string, project: Suwol2DProjectFile, options: Suwol2DAtlasExportOptions): Promise<ExportSuwol2DAssetResult | null>;
     createBackup(projectFilePath: string, project: Suwol2DProjectFile): Promise<string>;
   };
   app: {

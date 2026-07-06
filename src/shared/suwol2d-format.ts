@@ -9,8 +9,36 @@ export interface Suwol2DDocument {
   skins: Suwol2DSkin[];
   attachments: Suwol2DAttachment[];
   animations: Suwol2DAnimation[];
+  atlases?: Suwol2DAtlas[];
   ikConstraints?: Suwol2DIkConstraint[];
   stateMachines?: Suwol2DStateMachine[];
+}
+
+export interface Suwol2DAtlas {
+  name: string;
+  image: string;
+  width: number;
+  height: number;
+  regions: Suwol2DAtlasRegion[];
+}
+
+export interface Suwol2DAtlasRegion {
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  u: number;
+  v: number;
+  u2: number;
+  v2: number;
+}
+
+export interface Suwol2DAtlasExportOptions {
+  createAtlas: boolean;
+  atlasName: string;
+  atlasMaxSize: number;
+  atlasPadding: number;
 }
 
 export interface Suwol2DBone {

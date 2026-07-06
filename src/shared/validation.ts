@@ -1,6 +1,7 @@
 import type {
   Suwol2DAttachment,
   Suwol2DAttachmentTimeline,
+  Suwol2DAtlas,
   Suwol2DDocument,
   Suwol2DDrawOrderKey,
   Suwol2DEventKey,
@@ -142,6 +143,7 @@ export function validateDocument(document: Suwol2DDocument): ValidationResult {
 
   validateIkConstraints(issues, document.ikConstraints ?? [], document, boneNames);
   validateStateMachines(issues, document.stateMachines ?? [], animationNames, document.animations);
+  validateAtlases(issues, document.atlases ?? []);
 
   return {
     ok: !issues.some((issue) => issue.severity === 'error'),
@@ -239,6 +241,16 @@ function localizeValidationIssue(issue: ValidationIssue): ValidationIssue {
     return withKey(issue, 'validation.meshWeightMissingBone', { name: meshWeightMissingBone[1], bone: meshWeightMissingBone[2] });
   }
 
+  const duplicateAtlasRegion = message.match(/^Atlas '(.+?)' has duplicate region '(.+?)'\.$/);
+  if (duplicateAtlasRegion) {
+    return withKey(issue, 'validation.duplicateAtlasRegion', { atlas: duplicateAtlasRegion[1], region: duplicateAtlasRegion[2] });
+  }
+
+  const atlasRegionOutOfBounds = message.match(/^Atlas '(.+?)' region '(.+?)' is outside atlas bounds\.$/);
+  if (atlasRegionOutOfBounds) {
+    return withKey(issue, 'validation.atlasRegionOutOfBounds', { atlas: atlasRegionOutOfBounds[1], region: atlasRegionOutOfBounds[2] });
+  }
+
   const stateMissingAnimation = message.match(/^State machine '(.+?)' state '(.+?)' references missing animation '(.+?)'\.$/);
   if (stateMissingAnimation) {
     return withKey(issue, 'validation.stateMachineMissingAnimation', {
@@ -262,6 +274,64 @@ function localizeValidationIssue(issue: ValidationIssue): ValidationIssue {
   }
 
   return withKey(issue, 'validation.genericIssue', { message });
+}
+
+function validateAtlases(issues: ValidationIssue[], atlases: Suwol2DAtlas[]): void {
+  const atlasNames = new Set<string>();
+  for (const atlas of atlases) {
+    const atlasName = atlas.name?.trim() || '(unnamed)';
+    if (!atlas.name?.trim()) {
+      issues.push({ severity: 'error', message: 'Atlas has an empty name.' });
+    } else if (atlasNames.has(atlas.name)) {
+      issues.push({ severity: 'error', message: `Duplicate atlas name: ${atlas.name}` });
+    }
+    atlasNames.add(atlas.name);
+
+    if (!atlas.image?.trim()) {
+      issues.push({ severity: 'error', message: `Atlas '${atlasName}' has no image.` });
+    }
+
+    if (!Number.isInteger(atlas.width) || !Number.isInteger(atlas.height) || atlas.width <= 0 || atlas.height <= 0) {
+      issues.push({ severity: 'error', message: `Atlas '${atlasName}' has invalid dimensions.` });
+    }
+
+    const regionNames = new Set<string>();
+    for (const region of atlas.regions ?? []) {
+      const regionName = region.name?.trim() || '(unnamed)';
+      if (!region.name?.trim()) {
+        issues.push({ severity: 'error', message: `Atlas '${atlasName}' has a region with an empty name.` });
+      } else if (regionNames.has(region.name)) {
+        issues.push({ severity: 'error', message: `Atlas '${atlasName}' has duplicate region '${region.name}'.` });
+      }
+      regionNames.add(region.name);
+
+      if (
+        !Number.isInteger(region.x) ||
+        !Number.isInteger(region.y) ||
+        !Number.isInteger(region.width) ||
+        !Number.isInteger(region.height) ||
+        region.x < 0 ||
+        region.y < 0 ||
+        region.width <= 0 ||
+        region.height <= 0 ||
+        region.x + region.width > atlas.width ||
+        region.y + region.height > atlas.height
+      ) {
+        issues.push({ severity: 'error', message: `Atlas '${atlasName}' region '${regionName}' is outside atlas bounds.` });
+      }
+
+      if (
+        !isUnitRange(region.u) ||
+        !isUnitRange(region.v) ||
+        !isUnitRange(region.u2) ||
+        !isUnitRange(region.v2) ||
+        region.u2 <= region.u ||
+        region.v2 <= region.v
+      ) {
+        issues.push({ severity: 'error', message: `Atlas '${atlasName}' region '${regionName}' has invalid UV range.` });
+      }
+    }
+  }
 }
 
 function withKey(issue: ValidationIssue, messageKey: TranslationKey, params: TranslationParams = {}): ValidationIssue {
@@ -1166,4 +1236,8 @@ function validateFiniteTransform(issues: ValidationIssue[], label: string, value
       return;
     }
   }
+}
+
+function isUnitRange(value: number): boolean {
+  return Number.isFinite(value) && value >= 0 && value <= 1;
 }

@@ -29,10 +29,11 @@ namespace Suwol.Suwol2D
             Transform root,
             Texture2D[] textures,
             Material defaultMaterial,
-            Suwol2DSkinResolver skinResolver = null)
+            Suwol2DSkinResolver skinResolver = null,
+            Suwol2DAtlasLookup atlasLookup = null)
         {
             Clear();
-            Sync(skeleton, root, textures, defaultMaterial, skinResolver);
+            Sync(skeleton, root, textures, defaultMaterial, skinResolver, atlasLookup);
         }
 
         public void Sync(
@@ -40,7 +41,8 @@ namespace Suwol.Suwol2D
             Transform root,
             Texture2D[] textures,
             Material defaultMaterial,
-            Suwol2DSkinResolver skinResolver = null)
+            Suwol2DSkinResolver skinResolver = null,
+            Suwol2DAtlasLookup atlasLookup = null)
         {
             if (skeleton == null || root == null)
             {
@@ -71,7 +73,8 @@ namespace Suwol.Suwol2D
                     continue;
                 }
 
-                var texture = FindTexture(textures, attachment.Image);
+                var atlasRegion = ResolveAtlasRegion(atlasLookup, attachment.Image);
+                var texture = atlasRegion != null ? atlasRegion.Texture : FindTexture(textures, attachment.Image);
                 if (texture == null)
                 {
                     WarnMissingTextureOnce(slot, attachment);
@@ -79,7 +82,7 @@ namespace Suwol.Suwol2D
                     continue;
                 }
 
-                var cacheKey = CreateCacheKey(slot, attachment, texture, skinResolver);
+                var cacheKey = CreateCacheKey(slot, attachment, texture, skinResolver, atlasRegion);
                 SlotView cachedView;
                 if (viewsBySlot.TryGetValue(slot.Name, out cachedView) &&
                     cachedView != null &&
@@ -93,7 +96,7 @@ namespace Suwol.Suwol2D
                 }
 
                 RemoveSlot(slot.Name);
-                var view = CreateSlotView(slot, attachment, root, defaultMaterial, texture, cacheKey, i);
+                var view = CreateSlotView(slot, attachment, root, defaultMaterial, texture, atlasRegion, cacheKey, i);
                 views.Add(view);
                 viewsBySlot.Add(slot.Name, view);
             }
@@ -201,6 +204,7 @@ namespace Suwol.Suwol2D
             Transform root,
             Material defaultMaterial,
             Texture2D texture,
+            Suwol2DResolvedAtlasRegion atlasRegion,
             string cacheKey,
             int sortingOrder)
         {
@@ -209,7 +213,7 @@ namespace Suwol.Suwol2D
 
             var meshFilter = viewObject.AddComponent<MeshFilter>();
             var meshRenderer = viewObject.AddComponent<MeshRenderer>();
-            var mesh = CreateQuadMesh(attachment.Width, attachment.Height);
+            var mesh = CreateQuadMesh(attachment.Width, attachment.Height, atlasRegion);
             var material = CreateMaterial(defaultMaterial, texture);
 
             meshFilter.sharedMesh = mesh;
@@ -302,7 +306,7 @@ namespace Suwol.Suwol2D
                 1f);
         }
 
-        private static Mesh CreateQuadMesh(float width, float height)
+        private static Mesh CreateQuadMesh(float width, float height, Suwol2DResolvedAtlasRegion atlasRegion)
         {
             var halfWidth = width * 0.5f;
             var halfHeight = height * 0.5f;
@@ -315,13 +319,7 @@ namespace Suwol.Suwol2D
                 new Vector3(halfWidth, halfHeight, 0f),
                 new Vector3(halfWidth, -halfHeight, 0f)
             };
-            mesh.uv = new[]
-            {
-                new Vector2(0f, 0f),
-                new Vector2(0f, 1f),
-                new Vector2(1f, 1f),
-                new Vector2(1f, 0f)
-            };
+            mesh.uv = CreateQuadUv(atlasRegion);
             mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
             mesh.RecalculateBounds();
             mesh.RecalculateNormals();
@@ -332,7 +330,8 @@ namespace Suwol.Suwol2D
             Suwol2DSlot slot,
             Suwol2DAttachment attachment,
             Texture2D texture,
-            Suwol2DSkinResolver skinResolver)
+            Suwol2DSkinResolver skinResolver,
+            Suwol2DResolvedAtlasRegion atlasRegion)
         {
             var skinName = skinResolver != null ? skinResolver.GetCurrentSkin() : string.Empty;
             return (slot != null ? slot.Name : string.Empty) + "|" +
@@ -341,7 +340,8 @@ namespace Suwol.Suwol2D
                 Suwol2DAttachment.RegionType + "|" +
                 "visible|" +
                 (attachment != null ? NormalizeTextureName(attachment.Image) : string.Empty) + "|" +
-                (texture != null ? NormalizeTextureName(texture.name) : string.Empty);
+                (texture != null ? NormalizeTextureName(texture.name) : string.Empty) + "|" +
+                CreateAtlasCacheKey(atlasRegion);
         }
 
         private void WarnMissingTextureOnce(Suwol2DSlot slot, Suwol2DAttachment attachment)
@@ -436,6 +436,51 @@ namespace Suwol.Suwol2D
             return null;
         }
 
+        private static Suwol2DResolvedAtlasRegion ResolveAtlasRegion(Suwol2DAtlasLookup atlasLookup, string imageName)
+        {
+            if (atlasLookup == null)
+            {
+                return null;
+            }
+
+            Suwol2DResolvedAtlasRegion resolved;
+            return atlasLookup.TryResolve(imageName, out resolved) ? resolved : null;
+        }
+
+        private static Vector2[] CreateQuadUv(Suwol2DResolvedAtlasRegion atlasRegion)
+        {
+            if (atlasRegion == null || atlasRegion.Region == null)
+            {
+                return new[]
+                {
+                    new Vector2(0f, 0f),
+                    new Vector2(0f, 1f),
+                    new Vector2(1f, 1f),
+                    new Vector2(1f, 0f)
+                };
+            }
+
+            var region = atlasRegion.Region;
+            return new[]
+            {
+                new Vector2(region.u, region.v),
+                new Vector2(region.u, region.v2),
+                new Vector2(region.u2, region.v2),
+                new Vector2(region.u2, region.v)
+            };
+        }
+
+        private static string CreateAtlasCacheKey(Suwol2DResolvedAtlasRegion atlasRegion)
+        {
+            if (atlasRegion == null || atlasRegion.Region == null)
+            {
+                return "texture";
+            }
+
+            var region = atlasRegion.Region;
+            return "atlas:" + region.name + ":" + region.u + "," + region.v + "," + region.u2 + "," + region.v2;
+        }
+
         private static string NormalizeTextureName(string value)
         {
             if (string.IsNullOrEmpty(value))
@@ -450,10 +495,14 @@ namespace Suwol.Suwol2D
                 normalized = normalized.Substring(slashIndex + 1);
             }
 
-            var dotIndex = normalized.LastIndexOf('.');
-            if (dotIndex > 0)
+            var lower = normalized.ToLowerInvariant();
+            if (lower.EndsWith(".png") || lower.EndsWith(".jpg") || lower.EndsWith(".jpeg"))
             {
-                normalized = normalized.Substring(0, dotIndex);
+                var dotIndex = normalized.LastIndexOf('.');
+                if (dotIndex > 0)
+                {
+                    normalized = normalized.Substring(0, dotIndex);
+                }
             }
 
             return normalized;

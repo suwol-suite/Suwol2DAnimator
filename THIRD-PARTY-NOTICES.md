@@ -17,9 +17,11 @@ readiness work:
 | react | 19.2.7 | MIT |
 | react-dom | 19.2.7 | MIT |
 | lucide-react | 1.23.0 | ISC |
+| pngjs | 7.0.0 | MIT |
 | typescript | 6.0.3 | Apache-2.0 |
 | vite | 7.3.6 | MIT |
 | @vitejs/plugin-react | 5.2.0 | MIT |
+| @types/pngjs | 6.0.5 | MIT |
 
 ## Unity Dependencies
 

@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   chooseExportPath,
   chooseSuwol2DAssetExportPath,
+  createExportAtlas,
   copyExportTextures,
   chooseProjectFile,
   chooseProjectParent,
@@ -15,18 +16,25 @@ import {
   writeJsonFile,
   writeProjectBackup
 } from './file-ipc';
-import { createEmptyProject, type HydratedProjectResult, type Suwol2DProjectFile } from '../../shared/suwol2d-format';
+import {
+  createEmptyProject,
+  type HydratedProjectResult,
+  type Suwol2DAtlasExportOptions,
+  type Suwol2DProjectFile
+} from '../../shared/suwol2d-format';
 import { createUnityRuntimeExport } from '../../shared/export-suwol2d';
 
 export interface ExportJsonResult {
   exportPath: string;
   texturePaths: string[];
+  atlasPaths: string[];
 }
 
 export interface ExportSuwol2DAssetResult {
   exportPath: string;
   debugJsonPath: string;
   texturePaths: string[];
+  atlasPaths: string[];
 }
 
 export function registerProjectIpc(): void {
@@ -94,7 +102,7 @@ export function registerProjectIpc(): void {
     return [body, arm, sword, axe];
   });
 
-  ipcMain.handle('project:export-json', async (_event, projectFilePath: string, project: Suwol2DProjectFile) => {
+  ipcMain.handle('project:export-json', async (_event, projectFilePath: string, project: Suwol2DProjectFile, options?: Suwol2DAtlasExportOptions) => {
     const projectPath = dirname(projectFilePath);
     const document = createUnityRuntimeExport(project.document);
     const exportPath = await chooseExportPath(projectPath, document.name);
@@ -102,12 +110,21 @@ export function registerProjectIpc(): void {
       return null;
     }
 
+    const atlasResult = await createExportAtlas(projectPath, exportPath, project.importedImages ?? [], document, normalizeAtlasExportOptions(options, document.name));
+    if (atlasResult) {
+      document.atlases = [atlasResult.atlas];
+    }
+
     await writeJsonFile(exportPath, document);
     const texturePaths = await copyExportTextures(projectPath, exportPath, project.importedImages ?? [], document);
-    return { exportPath, texturePaths } satisfies ExportJsonResult;
+    return {
+      exportPath,
+      texturePaths,
+      atlasPaths: atlasResult ? [atlasResult.atlasImagePath, atlasResult.atlasJsonPath] : []
+    } satisfies ExportJsonResult;
   });
 
-  ipcMain.handle('project:export-suwol2d', async (_event, projectFilePath: string, project: Suwol2DProjectFile) => {
+  ipcMain.handle('project:export-suwol2d', async (_event, projectFilePath: string, project: Suwol2DProjectFile, options?: Suwol2DAtlasExportOptions) => {
     const projectPath = dirname(projectFilePath);
     const document = createUnityRuntimeExport(project.document);
     const exportPath = await chooseSuwol2DAssetExportPath(projectPath, document.name);
@@ -115,11 +132,21 @@ export function registerProjectIpc(): void {
       return null;
     }
 
+    const atlasResult = await createExportAtlas(projectPath, exportPath, project.importedImages ?? [], document, normalizeAtlasExportOptions(options, document.name));
+    if (atlasResult) {
+      document.atlases = [atlasResult.atlas];
+    }
+
     const debugJsonPath = exportPath.endsWith('.json') ? exportPath : `${exportPath}.json`;
     await writeJsonFile(exportPath, document);
     await writeJsonFile(debugJsonPath, document);
     const texturePaths = await copyExportTextures(projectPath, exportPath, project.importedImages ?? [], document);
-    return { exportPath, debugJsonPath, texturePaths } satisfies ExportSuwol2DAssetResult;
+    return {
+      exportPath,
+      debugJsonPath,
+      texturePaths,
+      atlasPaths: atlasResult ? [atlasResult.atlasImagePath, atlasResult.atlasJsonPath] : []
+    } satisfies ExportSuwol2DAssetResult;
   });
 
   ipcMain.handle('project:create-backup', async (_event, projectFilePath: string, project: Suwol2DProjectFile) => {
@@ -153,4 +180,21 @@ function stripHydratedImageData(project: Suwol2DProjectFile): Suwol2DProjectFile
       return persistedImage;
     })
   };
+}
+
+function normalizeAtlasExportOptions(options: Suwol2DAtlasExportOptions | undefined, documentName: string): Suwol2DAtlasExportOptions {
+  return {
+    createAtlas: options?.createAtlas === true,
+    atlasName: options?.atlasName?.trim() || documentName || 'character',
+    atlasMaxSize: sanitizeExportInteger(options?.atlasMaxSize, 2048, 64, 4096),
+    atlasPadding: sanitizeExportInteger(options?.atlasPadding, 2, 0, 128)
+  };
+}
+
+function sanitizeExportInteger(value: number | undefined, fallback: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.max(min, Math.min(max, Math.trunc(value as number)));
 }

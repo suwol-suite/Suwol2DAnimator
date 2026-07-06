@@ -42,9 +42,10 @@ under `unity/com.suwol.suwol2d/`.
 - Simple bool/trigger state machines
 - Timeline key editing, snap, copy/paste, duplicate, filters, and explicit duration
 - Canvas vertex selection/move plus weight and deform brush editing
+- Optional PNG texture atlas export with Unity atlas UV fallback
 
 Out of scope for this release: Spine import/export/runtime compatibility,
-clipping, atlas packing, animation layers, blend trees, additive animation,
+clipping, rotated/trimmed/multi-page atlases, animation layers, blend trees, additive animation,
 telemetry, auto-updater, and licensing/payment systems.
 
 ## Install And Run
@@ -267,7 +268,12 @@ release/com.suwol.suwol2d-0.12.0.zip
 3. Export `.suwol2d` for the Unity importer.
 4. Export `.suwol2d.json` when a readable debug JSON is needed.
 5. Copy the exported asset and `Textures/` folder into a Unity project.
-6. Import with the `com.suwol.suwol2d` UPM package installed.
+6. Optionally enable Atlas export to create `Atlas/*.atlas.png` and `Atlas/*.atlas.json`.
+7. Import with the `com.suwol.suwol2d` UPM package installed.
+
+Atlas export is optional. Existing individual texture export remains the
+fallback path, and Unity uses atlas regions only when an attachment image name
+matches a region in the `.suwol2d` `atlases` array.
 
 ## Release Documents
 
@@ -278,8 +284,10 @@ release/com.suwol.suwol2d-0.12.0.zip
 - `docs/hotfix-candidates-0.12.1.md`
 - `docs/localization-i18n-v15.md`
 - `docs/brush-editing-canvas-direct-editing-v16.md`
+- `docs/atlas-packing-texture-atlas-v17.md`
 - `unity/com.suwol.suwol2d/Documentation~/index.md`
 - `unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md`
+- `unity/com.suwol.suwol2d/Documentation~/atlas-packing-texture-atlas-v17.md`
 
 ## License
 

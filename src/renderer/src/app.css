@@ -172,6 +172,44 @@ button:disabled {
   padding: 0 8px;
 }
 
+.export-options {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid #303a45;
+  border-radius: 7px;
+  background: #121922;
+}
+
+.checkbox-label,
+.compact-input,
+.number-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #aab6bb;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.checkbox-label input {
+  width: 15px;
+  height: 15px;
+}
+
+.compact-input input {
+  width: 104px;
+  padding: 0 8px;
+}
+
+.number-chip input {
+  width: 72px;
+  padding: 0 7px;
+}
+
 .language-selector {
   display: inline-flex;
   align-items: center;

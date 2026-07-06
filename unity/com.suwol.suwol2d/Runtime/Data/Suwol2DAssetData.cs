@@ -12,8 +12,33 @@ namespace Suwol.Suwol2D
         public Suwol2DSkinData[] skins = new Suwol2DSkinData[0];
         public Suwol2DAttachmentData[] attachments = new Suwol2DAttachmentData[0];
         public Suwol2DAnimationData[] animations = new Suwol2DAnimationData[0];
+        public Suwol2DAtlasData[] atlases = new Suwol2DAtlasData[0];
         public Suwol2DIkConstraintData[] ikConstraints = new Suwol2DIkConstraintData[0];
         public Suwol2DStateMachineData[] stateMachines = new Suwol2DStateMachineData[0];
+    }
+
+    [Serializable]
+    public sealed class Suwol2DAtlasData
+    {
+        public string name = string.Empty;
+        public string image = string.Empty;
+        public int width;
+        public int height;
+        public Suwol2DAtlasRegionData[] regions = new Suwol2DAtlasRegionData[0];
+    }
+
+    [Serializable]
+    public sealed class Suwol2DAtlasRegionData
+    {
+        public string name = string.Empty;
+        public int x;
+        public int y;
+        public int width;
+        public int height;
+        public float u;
+        public float v;
+        public float u2;
+        public float v2;
     }
 
     [Serializable]

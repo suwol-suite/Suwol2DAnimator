@@ -18,10 +18,10 @@ contextBridge.exposeInMainWorld('suwol', {
     createSkinSampleAssets: (projectFilePath: string) => ipcRenderer.invoke('project:create-skin-sample-assets', projectFilePath),
     createAnimationTimelinesSampleAssets: (projectFilePath: string) =>
       ipcRenderer.invoke('project:create-animation-timelines-sample-assets', projectFilePath),
-    exportSuwol2DJson: (projectFilePath: string, project: unknown) =>
-      ipcRenderer.invoke('project:export-json', projectFilePath, project),
-    exportSuwol2DAsset: (projectFilePath: string, project: unknown) =>
-      ipcRenderer.invoke('project:export-suwol2d', projectFilePath, project),
+    exportSuwol2DJson: (projectFilePath: string, project: unknown, options: unknown) =>
+      ipcRenderer.invoke('project:export-json', projectFilePath, project, options),
+    exportSuwol2DAsset: (projectFilePath: string, project: unknown, options: unknown) =>
+      ipcRenderer.invoke('project:export-suwol2d', projectFilePath, project, options),
     createBackup: (projectFilePath: string, project: unknown) =>
       ipcRenderer.invoke('project:create-backup', projectFilePath, project)
   },

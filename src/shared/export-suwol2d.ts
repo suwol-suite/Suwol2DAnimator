@@ -1,5 +1,7 @@
 import type {
   Suwol2DAnimation,
+  Suwol2DAtlas,
+  Suwol2DAtlasRegion,
   Suwol2DAttachmentKey,
   Suwol2DAttachmentTimeline,
   Suwol2DAttachment,
@@ -41,6 +43,7 @@ export function createUnityRuntimeExport(document: Suwol2DDocument): Suwol2DDocu
     .map((slot, index) => ({ ...slot, drawOrder: index }));
   const ikConstraints = cleanIkConstraints(document.ikConstraints ?? []);
   const stateMachines = cleanStateMachines(document.stateMachines ?? [], document);
+  const atlases = cleanAtlases(document.atlases ?? []);
   const includeBoneLengths = ikConstraints.length > 0;
 
   return {
@@ -51,8 +54,36 @@ export function createUnityRuntimeExport(document: Suwol2DDocument): Suwol2DDocu
     skins,
     attachments,
     animations: document.animations.map(cleanAnimation),
+    ...(atlases.length > 0 ? { atlases } : {}),
     ...(ikConstraints.length > 0 ? { ikConstraints } : {}),
     ...(stateMachines.length > 0 ? { stateMachines } : {})
+  };
+}
+
+function cleanAtlases(atlases: Suwol2DAtlas[]): Suwol2DAtlas[] {
+  return atlases
+    .map((atlas): Suwol2DAtlas => ({
+      name: atlas.name.trim(),
+      image: normalizeAtlasImagePath(atlas.image),
+      width: safeInteger(atlas.width, 0),
+      height: safeInteger(atlas.height, 0),
+      regions: (atlas.regions ?? []).map(cleanAtlasRegion).sort((a, b) => a.name.localeCompare(b.name))
+    }))
+    .filter((atlas) => atlas.name && atlas.image && atlas.width > 0 && atlas.height > 0 && atlas.regions.length > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function cleanAtlasRegion(region: Suwol2DAtlasRegion): Suwol2DAtlasRegion {
+  return {
+    name: normalizeImageReference(region.name),
+    x: safeInteger(region.x, 0),
+    y: safeInteger(region.y, 0),
+    width: safeInteger(region.width, 0),
+    height: safeInteger(region.height, 0),
+    u: clamp01(safeNumber(region.u, 0)),
+    v: clamp01(safeNumber(region.v, 0)),
+    u2: clamp01(safeNumber(region.u2, 0)),
+    v2: clamp01(safeNumber(region.v2, 0))
   };
 }
 
@@ -582,6 +613,11 @@ function getDrawOrder(slot: Suwol2DSlot): number {
 function normalizeImageReference(value: string): string {
   const fileName = value.trim().replace(/\\/g, '/').split('/').pop() ?? value.trim();
   return fileName.replace(/\.[^.]+$/, '');
+}
+
+function normalizeAtlasImagePath(value: string): string {
+  const portable = value.trim().replace(/\\/g, '/');
+  return portable.replace(/^\/+/, '');
 }
 
 function sortByTime(a: { time: number }, b: { time: number }): number {

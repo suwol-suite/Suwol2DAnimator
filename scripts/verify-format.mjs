@@ -17,6 +17,7 @@ const {
   createWeightedMeshSampleDocument
 } = await import('../src/renderer/src/features/project/sample-project.ts');
 const { createUnityRuntimeExport } = await import('../src/shared/export-suwol2d.ts');
+const { packAtlasImages } = await import('../src/main/atlas/atlas-packer.ts');
 const { suwolReleaseInfo } = await import('../src/shared/release-info.ts');
 const { validateDocument } = await import('../src/shared/validation.ts');
 
@@ -176,6 +177,27 @@ await validateSuwol2DPair({
   texturesPath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'TimelineUsabilityV11', 'Textures'),
   textureNames: ['body.png', 'arm.png', 'sword.png', 'axe.png']
 });
+
+const atlasPack = packAtlasImages(
+  importedImages.slice(0, 2).map((image) => ({
+    name: image.name,
+    sourcePath: image.relativePath,
+    width: image.width,
+    height: image.height
+  })),
+  {
+    name: 'sample_character',
+    image: 'Atlas/sample_character.atlas.png',
+    maxSize: 128,
+    padding: 2
+  }
+);
+const atlasDocument = createUnityRuntimeExport(createSampleDocument(importedImages));
+atlasDocument.atlases = [atlasPack.atlas];
+assert.ok(validateDocument(atlasDocument).ok, 'atlas document should pass shared validation.');
+validateRuntimeDocument(atlasDocument, 'atlas sample', ['region'], false, false, ['default'], ['idle', 'walk'], ['body.png', 'arm.png']);
+validateAtlasDocument(atlasDocument, 'atlas sample');
+
 await validateAllUnityPackageSamples();
 await validateReleaseReadinessMetadata();
 
@@ -191,6 +213,12 @@ for (const field of [
   'public Suwol2DSkinData[] skins',
   'public Suwol2DAttachmentData[] attachments',
   'public Suwol2DAnimationData[] animations',
+  'public Suwol2DAtlasData[] atlases',
+  'public sealed class Suwol2DAtlasData',
+  'public sealed class Suwol2DAtlasRegionData',
+  'public Suwol2DAtlasRegionData[] regions',
+  'public int width',
+  'public int height',
   'public float duration',
   'public Suwol2DIkConstraintData[] ikConstraints',
   'public sealed class Suwol2DIkConstraintData',
@@ -275,6 +303,7 @@ for (const field of [
   'public bool SetBool',
   'public bool SetTrigger',
   'public void ResetTrigger',
+  'Suwol2DAtlasLookup',
   'public event Action<Suwol2DAnimationEvent> AnimationEvent'
 ]) {
   assert.ok(characterRuntime.includes(field), `Suwol2DCharacter is missing runtime skin API: ${field}`);
@@ -291,6 +320,8 @@ for (const field of [
   'Suwol2DPrefabBuilder.Build',
   'ValidateData',
   'ValidateStateMachines',
+  'ValidateAtlases',
+  'CollectAtlasImageNames',
   'SetStateMachineSummary'
 ]) {
   assert.ok(importerRuntime.includes(field), `Suwol2D importer is missing expected implementation marker: ${field}`);
@@ -319,9 +350,16 @@ const meshRendererRuntime = await readFile(
   join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Runtime', 'Rendering', 'Suwol2DMeshAttachmentRenderer.cs'),
   'utf8'
 );
-for (const field of ['public void Sync', 'public int ViewCount', 'CreateCacheKey', 'DestroyObject']) {
+const atlasLookupRuntime = await readFile(
+  join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Runtime', 'Rendering', 'Suwol2DAtlasLookup.cs'),
+  'utf8'
+);
+for (const field of ['public void Sync', 'public int ViewCount', 'CreateCacheKey', 'DestroyObject', 'Suwol2DAtlasLookup', 'CreateAtlasCacheKey']) {
   assert.ok(regionRendererRuntime.includes(field), `Suwol2DRegionRenderer is missing v9 renderer cache marker: ${field}`);
   assert.ok(meshRendererRuntime.includes(field), `Suwol2DMeshAttachmentRenderer is missing v9 renderer cache marker: ${field}`);
+}
+for (const field of ['public sealed class Suwol2DAtlasLookup', 'TryResolve', 'Suwol2DResolvedAtlasRegion', 'NormalizeTextureName']) {
+  assert.ok(atlasLookupRuntime.includes(field), `Suwol2DAtlasLookup is missing expected atlas API: ${field}`);
 }
 
 const unitySmokeScript = await readFile(join(repoRoot, 'scripts', 'unity-smoke-v9.mjs'), 'utf8');
@@ -333,7 +371,7 @@ const unitySmokeHelper = await readFile(
   join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Editor', 'Tests', 'Suwol2DRuntimeSmokeTests.cs'),
   'utf8'
 );
-for (const field of ['RunAll', 'ValidateImporterReimportRecovery', 'ValidateMalformedRuntimeJson', 'ValidateAnimationMixingStateMachineApi', 'Renderer view count']) {
+for (const field of ['RunAll', 'ValidateImporterReimportRecovery', 'ValidateMalformedRuntimeJson', 'ValidateAnimationMixingStateMachineApi', 'ValidateAtlasLookupApi', 'Renderer view count']) {
   assert.ok(unitySmokeHelper.includes(field), `Unity smoke helper is missing expected v9 marker: ${field}`);
 }
 
@@ -349,6 +387,7 @@ console.log(`- importer sample: ${importerSample.name} (${importerSample.skins.l
 console.log(`- animation timelines sample: ${animationTimelinesExport.animations.map((animation) => animation.name).join(', ')}`);
 console.log(`- animation mixing state machine sample: ${animationMixingStateMachineExport.stateMachines.map((machine) => machine.name).join(', ')}`);
 console.log(`- timeline usability sample durations: ${timelineUsabilityExport.animations.map((animation) => animation.duration).join(', ')}`);
+console.log(`- atlas sample regions: ${atlasPack.atlas.regions.map((region) => region.name).join(', ')}`);
 
 async function validateAllUnityPackageSamples() {
   const samplesRoot = join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~');
@@ -441,6 +480,7 @@ async function validateReleaseReadinessMetadata() {
     'docs/manual-qa-results-v13.md',
     'docs/hotfix-candidates-0.12.1.md',
     'docs/localization-i18n-v15.md',
+    'docs/atlas-packing-texture-atlas-v17.md',
     'src/shared/i18n/types.ts',
     'src/shared/i18n/locales.ts',
     'src/shared/i18n/translate.ts',
@@ -450,6 +490,7 @@ async function validateReleaseReadinessMetadata() {
     'src/renderer/src/i18n/I18nProvider.tsx',
     'src/renderer/src/i18n/useI18n.ts',
     'unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md',
+    'unity/com.suwol.suwol2d/Documentation~/atlas-packing-texture-atlas-v17.md',
     'scripts/generate-icons.mjs',
     'scripts/create-checksums.mjs',
     'scripts/zip-unity-package.mjs',
@@ -472,6 +513,8 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(rootReadme.includes('shasum -a 256 -c checksums.txt'), 'README should document macOS SHA-256 verification.');
   assert.ok(rootReadme.includes('npm.cmd run verify:locales'), 'README should document locale verification command.');
   assert.ok(rootReadme.includes('docs/localization-i18n-v15.md'), 'README should link v15 localization docs.');
+  assert.ok(rootReadme.includes('docs/atlas-packing-texture-atlas-v17.md'), 'README should link v17 atlas docs.');
+  assert.ok(rootReadme.includes('Optional PNG texture atlas export'), 'README should document atlas export support.');
   assert.ok(rootReadme.includes('npm.cmd run release:unity-package'), 'README should document Unity package zip command.');
   assert.ok(rootReadme.includes('docs/manual-qa-dogfooding-v13.md'), 'README should link v13 manual QA docs.');
   assert.ok(releaseChecklist.includes('.github/workflows/release-linux-zip.yml'), 'Release checklist should include Linux ZIP workflow checks.');
@@ -485,6 +528,8 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(manualQaDogfooding.includes('Linux ZIP Workflow QA'), 'Manual QA docs should include Linux ZIP workflow QA.');
   assert.ok(manualQaDogfooding.includes('Signed Linux Release QA'), 'Manual QA docs should include signed Linux release QA.');
   assert.ok(manualQaDogfooding.includes('checksums-linux-x64.txt'), 'Manual QA docs should include Linux checksum checks.');
+  assert.ok(unityDocsIndex.includes('atlas-packing-texture-atlas-v17.md'), 'Unity docs index should link v17 atlas docs.');
+  assert.ok(unityDocsIndex.includes('Optional texture atlas UV lookup'), 'Unity docs index should document atlas UV lookup.');
   for (const workflowMarker of [
     'name: Release Linux ZIP',
     'workflow_dispatch:',
@@ -737,6 +782,9 @@ function validateRuntimeDocument(
   expectedTextureNames = ['body.png', 'arm.png', 'body_armor.png', 'arm_armor.png', 'sword.png', 'axe.png']
 ) {
   const documentKeys = ['version', 'name', 'bones', 'slots', 'skins', 'attachments', 'animations'];
+  if (Object.hasOwn(document, 'atlases')) {
+    documentKeys.push('atlases');
+  }
   if (Object.hasOwn(document, 'ikConstraints')) {
     documentKeys.push('ikConstraints');
   }
@@ -752,6 +800,9 @@ function validateRuntimeDocument(
   assert.ok(Array.isArray(document.skins), `${label} skins should be an array`);
   assert.ok(Array.isArray(document.attachments), `${label} attachments should be an array`);
   assert.ok(Array.isArray(document.animations), `${label} animations should be an array`);
+  if (Object.hasOwn(document, 'atlases')) {
+    validateAtlasDocument(document, label);
+  }
 
   for (const bone of document.bones) {
     const boneKeys = ['name', 'parent', 'x', 'y', 'rotation', 'scaleX', 'scaleY'];
@@ -1007,6 +1058,42 @@ function validateStateMachines(stateMachines, document, label) {
           assert.equal(typeof condition.boolValue, 'boolean', `${label} bool condition boolValue should be boolean`);
         }
       }
+    }
+  }
+}
+
+function validateAtlasDocument(document, label) {
+  assert.ok(Array.isArray(document.atlases), `${label} atlases should be an array`);
+  assert.ok(document.atlases.length > 0, `${label} should include atlas metadata`);
+  const attachmentImages = new Set(document.attachments.map((attachment) => normalizeTextureName(attachment.image)));
+
+  for (const atlas of document.atlases) {
+    expectExactKeys(atlas, ['name', 'image', 'width', 'height', 'regions'], `${label} atlas`);
+    assert.equal(typeof atlas.name, 'string', `${label} atlas name should be a string`);
+    assert.ok(atlas.name.length > 0, `${label} atlas name should not be empty`);
+    assert.equal(typeof atlas.image, 'string', `${label} atlas image should be a string`);
+    assert.ok(atlas.image.startsWith('Atlas/'), `${label} atlas image should live in Atlas/`);
+    assert.ok(Number.isInteger(atlas.width) && atlas.width > 0, `${label} atlas width should be positive integer`);
+    assert.ok(Number.isInteger(atlas.height) && atlas.height > 0, `${label} atlas height should be positive integer`);
+    assert.ok(Array.isArray(atlas.regions) && atlas.regions.length > 0, `${label} atlas regions should be non-empty`);
+
+    const regionNames = new Set();
+    for (const region of atlas.regions) {
+      expectExactKeys(region, ['name', 'x', 'y', 'width', 'height', 'u', 'v', 'u2', 'v2'], `${label} atlas region`);
+      assert.equal(typeof region.name, 'string', `${label} atlas region name should be a string`);
+      assert.ok(!regionNames.has(region.name), `${label} atlas region names should be unique`);
+      regionNames.add(region.name);
+      assert.ok(attachmentImages.has(normalizeTextureName(region.name)), `${label} atlas region should map to an attachment image: ${region.name}`);
+      assert.ok(Number.isInteger(region.x) && region.x >= 0, `${label} atlas region x should be non-negative integer`);
+      assert.ok(Number.isInteger(region.y) && region.y >= 0, `${label} atlas region y should be non-negative integer`);
+      assert.ok(Number.isInteger(region.width) && region.width > 0, `${label} atlas region width should be positive integer`);
+      assert.ok(Number.isInteger(region.height) && region.height > 0, `${label} atlas region height should be positive integer`);
+      assert.ok(region.x + region.width <= atlas.width, `${label} atlas region should fit width`);
+      assert.ok(region.y + region.height <= atlas.height, `${label} atlas region should fit height`);
+      assert.ok(region.u >= 0 && region.u <= 1, `${label} atlas region u should be in 0..1`);
+      assert.ok(region.v >= 0 && region.v <= 1, `${label} atlas region v should be in 0..1`);
+      assert.ok(region.u2 >= 0 && region.u2 <= 1 && region.u2 > region.u, `${label} atlas region u2 should be in range`);
+      assert.ok(region.v2 >= 0 && region.v2 <= 1 && region.v2 > region.v, `${label} atlas region v2 should be in range`);
     }
   }
 }

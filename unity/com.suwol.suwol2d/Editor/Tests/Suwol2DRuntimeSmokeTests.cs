@@ -44,6 +44,7 @@ namespace Suwol.Suwol2D.Editor.Tests
                 ValidateImporterAssets(copiedRoot);
                 ValidateImporterReimportRecovery(copiedRoot);
                 ValidateMalformedRuntimeJson();
+                ValidateAtlasLookupApi();
                 ValidateEventDispatcher(jsonFiles);
 
                 Debug.Log("Suwol2D Runtime Stability v9 + Animation Mixing State Machine v10 + Timeline Usability v11 smoke tests passed.");
@@ -268,6 +269,52 @@ namespace Suwol.Suwol2D.Editor.Tests
             Assert(character.GetCurrentStateName() == "attack", "attack trigger should transition to attack: " + label);
             StepCharacter(character, 0.08f);
             Assert(character.GetCurrentAnimationName() == "attack", "attack transition should finish on attack animation: " + label);
+        }
+
+        private static void ValidateAtlasLookupApi()
+        {
+            var texture = new Texture2D(4, 4);
+            texture.name = "sample.atlas";
+            try
+            {
+                var lookup = new Suwol2DAtlasLookup(
+                    new[]
+                    {
+                        new Suwol2DAtlasData
+                        {
+                            name = "sample",
+                            image = "Atlas/sample.atlas.png",
+                            width = 4,
+                            height = 4,
+                            regions = new[]
+                            {
+                                new Suwol2DAtlasRegionData
+                                {
+                                    name = "body",
+                                    x = 0,
+                                    y = 0,
+                                    width = 2,
+                                    height = 2,
+                                    u = 0f,
+                                    v = 0f,
+                                    u2 = 0.5f,
+                                    v2 = 0.5f
+                                }
+                            }
+                        }
+                    },
+                    new[] { texture });
+
+                Suwol2DResolvedAtlasRegion resolved;
+                Assert(lookup.TryResolve("body", out resolved), "Atlas lookup should resolve a matching attachment image.");
+                Assert(resolved != null && resolved.Texture == texture, "Atlas lookup should return the atlas texture.");
+                Assert(resolved.Region != null && resolved.Region.u2 == 0.5f, "Atlas lookup should preserve region UVs.");
+                Assert(!lookup.TryResolve("missing", out resolved), "Atlas lookup should fall back when a region is missing.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(texture);
+            }
         }
 
         private static void ValidateTimelineUsabilityDuration(Suwol2DAssetData data, string label)

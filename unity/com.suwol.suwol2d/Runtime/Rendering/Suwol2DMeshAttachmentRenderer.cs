@@ -34,10 +34,11 @@ namespace Suwol.Suwol2D
             Transform root,
             Texture2D[] textures,
             Material defaultMaterial,
-            Suwol2DSkinResolver skinResolver = null)
+            Suwol2DSkinResolver skinResolver = null,
+            Suwol2DAtlasLookup atlasLookup = null)
         {
             Clear();
-            Sync(skeleton, root, textures, defaultMaterial, skinResolver);
+            Sync(skeleton, root, textures, defaultMaterial, skinResolver, atlasLookup);
             UpdatePose();
         }
 
@@ -46,7 +47,8 @@ namespace Suwol.Suwol2D
             Transform root,
             Texture2D[] textures,
             Material defaultMaterial,
-            Suwol2DSkinResolver skinResolver = null)
+            Suwol2DSkinResolver skinResolver = null,
+            Suwol2DAtlasLookup atlasLookup = null)
         {
             if (skeleton == null || root == null)
             {
@@ -81,7 +83,8 @@ namespace Suwol.Suwol2D
                     continue;
                 }
 
-                var texture = FindTexture(textures, attachment.Image);
+                var atlasRegion = ResolveAtlasRegion(atlasLookup, attachment.Image);
+                var texture = atlasRegion != null ? atlasRegion.Texture : FindTexture(textures, attachment.Image);
                 if (texture == null)
                 {
                     WarnMissingTextureOnce(slot, attachment);
@@ -91,7 +94,7 @@ namespace Suwol.Suwol2D
 
                 var isWeighted = Suwol2DWeightedMeshSolver.HasWeights(attachment);
                 WarnForMissingWeightBonesOnce(skeleton, attachment);
-                var cacheKey = CreateCacheKey(slot, attachment, texture, skinResolver, isWeighted);
+                var cacheKey = CreateCacheKey(slot, attachment, texture, skinResolver, isWeighted, atlasRegion);
                 SlotView cachedView;
                 if (viewsBySlot.TryGetValue(slot.Name, out cachedView) &&
                     cachedView != null &&
@@ -106,7 +109,7 @@ namespace Suwol.Suwol2D
                 }
 
                 RemoveSlot(slot.Name);
-                var view = CreateSlotView(slot, attachment, root, defaultMaterial, texture, cacheKey, i, isWeighted);
+                var view = CreateSlotView(slot, attachment, root, defaultMaterial, texture, atlasRegion, cacheKey, i, isWeighted);
                 views.Add(view);
                 viewsBySlot.Add(slot.Name, view);
             }
@@ -258,6 +261,7 @@ namespace Suwol.Suwol2D
             Transform root,
             Material defaultMaterial,
             Texture2D texture,
+            Suwol2DResolvedAtlasRegion atlasRegion,
             string cacheKey,
             int sortingOrder,
             bool isWeighted)
@@ -273,7 +277,7 @@ namespace Suwol.Suwol2D
 
             var meshFilter = viewObject.AddComponent<MeshFilter>();
             var meshRenderer = viewObject.AddComponent<MeshRenderer>();
-            var mesh = CreateMesh(attachment);
+            var mesh = CreateMesh(attachment, atlasRegion);
             var material = CreateMaterial(defaultMaterial, texture);
 
             meshFilter.sharedMesh = mesh;
@@ -373,7 +377,7 @@ namespace Suwol.Suwol2D
             return true;
         }
 
-        private static Mesh CreateMesh(Suwol2DAttachment attachment)
+        private static Mesh CreateMesh(Suwol2DAttachment attachment, Suwol2DResolvedAtlasRegion atlasRegion)
         {
             var vertices = attachment.Vertices;
             var meshVertices = new Vector3[vertices.Length];
@@ -383,7 +387,7 @@ namespace Suwol.Suwol2D
             {
                 var vertex = vertices[i];
                 meshVertices[i] = new Vector3(vertex.x, vertex.y, 0f);
-                uv[i] = new Vector2(vertex.u, vertex.v);
+                uv[i] = RemapUv(vertex.u, vertex.v, atlasRegion);
             }
 
             var mesh = new Mesh();
@@ -531,7 +535,8 @@ namespace Suwol.Suwol2D
             Suwol2DAttachment attachment,
             Texture2D texture,
             Suwol2DSkinResolver skinResolver,
-            bool isWeighted)
+            bool isWeighted,
+            Suwol2DResolvedAtlasRegion atlasRegion)
         {
             var skinName = skinResolver != null ? skinResolver.GetCurrentSkin() : string.Empty;
             return (slot != null ? slot.Name : string.Empty) + "|" +
@@ -541,7 +546,8 @@ namespace Suwol.Suwol2D
                 "visible|" +
                 (isWeighted ? "weighted" : "rigid") + "|" +
                 (attachment != null ? NormalizeTextureName(attachment.Image) : string.Empty) + "|" +
-                (texture != null ? NormalizeTextureName(texture.name) : string.Empty);
+                (texture != null ? NormalizeTextureName(texture.name) : string.Empty) + "|" +
+                CreateAtlasCacheKey(atlasRegion);
         }
 
         private void WarnInvalidMeshOnce(Suwol2DAttachment attachment)
@@ -619,6 +625,41 @@ namespace Suwol.Suwol2D
             return null;
         }
 
+        private static Suwol2DResolvedAtlasRegion ResolveAtlasRegion(Suwol2DAtlasLookup atlasLookup, string imageName)
+        {
+            if (atlasLookup == null)
+            {
+                return null;
+            }
+
+            Suwol2DResolvedAtlasRegion resolved;
+            return atlasLookup.TryResolve(imageName, out resolved) ? resolved : null;
+        }
+
+        private static Vector2 RemapUv(float u, float v, Suwol2DResolvedAtlasRegion atlasRegion)
+        {
+            if (atlasRegion == null || atlasRegion.Region == null)
+            {
+                return new Vector2(u, v);
+            }
+
+            var region = atlasRegion.Region;
+            return new Vector2(
+                region.u + u * (region.u2 - region.u),
+                region.v + v * (region.v2 - region.v));
+        }
+
+        private static string CreateAtlasCacheKey(Suwol2DResolvedAtlasRegion atlasRegion)
+        {
+            if (atlasRegion == null || atlasRegion.Region == null)
+            {
+                return "texture";
+            }
+
+            var region = atlasRegion.Region;
+            return "atlas:" + region.name + ":" + region.u + "," + region.v + "," + region.u2 + "," + region.v2;
+        }
+
         private static string NormalizeTextureName(string value)
         {
             if (string.IsNullOrEmpty(value))
@@ -633,10 +674,14 @@ namespace Suwol.Suwol2D
                 normalized = normalized.Substring(slashIndex + 1);
             }
 
-            var dotIndex = normalized.LastIndexOf('.');
-            if (dotIndex > 0)
+            var lower = normalized.ToLowerInvariant();
+            if (lower.EndsWith(".png") || lower.EndsWith(".jpg") || lower.EndsWith(".jpeg"))
             {
-                normalized = normalized.Substring(0, dotIndex);
+                var dotIndex = normalized.LastIndexOf('.');
+                if (dotIndex > 0)
+                {
+                    normalized = normalized.Substring(0, dotIndex);
+                }
             }
 
             return normalized;

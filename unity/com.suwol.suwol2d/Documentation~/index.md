@@ -32,6 +32,7 @@ Suwol 2D Animator Electron editor.
 - Single-layer animation mixing
 - Simple bool/trigger state machines
 - Explicit animation duration exported by the editor
+- Optional texture atlas UV lookup with individual texture fallback
 
 ## Samples
 
@@ -61,13 +62,14 @@ skin switching, slot attachment overrides, and animation event callbacks.
 
 - No Spine compatibility or Spine runtime integration.
 - No clipping runtime.
-- No atlas packing.
+- No rotated, trimmed, or multi-page atlas runtime.
 - No blend tree, additive animation, or animation layer system.
 - No physics, audio, telemetry, licensing, payment, or cloud login system.
 
 ## Troubleshooting
 
 - If textures are missing, keep the `.suwol2d` asset and `Textures/` folder next to each other.
+- If atlas rendering is missing, keep the exported `Atlas/` folder beside the `.suwol2d` asset.
 - If import reports errors, inspect the `Suwol2DImportedAsset` report subasset.
 - If package installation fails, verify the selected file is `com.suwol.suwol2d/package.json`.
 - If smoke tests cannot run, install Unity Hub/Editor or set `UNITY_EXE`.
@@ -86,3 +88,4 @@ skin switching, slot attachment overrides, and animation event callbacks.
 - `animation-mixing-state-machine-v10.md`
 - `editor-timeline-usability-key-editing-v11.md`
 - `packaging-release-readiness-v12.md`
+- `atlas-packing-texture-atlas-v17.md`

@@ -25,6 +25,7 @@ import type {
   HydratedProjectResult,
   ImportedImage,
   Suwol2DAnimation,
+  Suwol2DAtlasExportOptions,
   Suwol2DAttachmentKey,
   Suwol2DAttachmentTimeline,
   Suwol2DAttachment,
@@ -187,6 +188,12 @@ type StatusMessage =
 
 const maxHistoryEntries = 100;
 const defaultPreviewView: PreviewView = { zoom: 1, panX: 0, panY: 0 };
+const defaultAtlasExportOptions: Suwol2DAtlasExportOptions = {
+  createAtlas: false,
+  atlasName: 'character',
+  atlasMaxSize: 2048,
+  atlasPadding: 2
+};
 
 const defaultProject: Suwol2DProjectFile = {
   editorVersion: 0,
@@ -216,6 +223,7 @@ export function App() {
   const [canvasTool, setCanvasTool] = useState<CanvasToolMode>('select');
   const [canvasBrushSettings, setCanvasBrushSettings] = useState<CanvasBrushSettings>(defaultCanvasBrushSettings);
   const [selectedCanvasVertices, setSelectedCanvasVertices] = useState<CanvasVertexSelection | null>(null);
+  const [atlasExportOptions, setAtlasExportOptions] = useState<Suwol2DAtlasExportOptions>(defaultAtlasExportOptions);
   const [lastTimelineEvent, setLastTimelineEvent] = useState('');
   const [stateMachinePreview, setStateMachinePreview] = useState<StateMachinePreviewState>(() => createInitialStateMachinePreview(defaultProject.document));
   const [statusMessage, setStatusMessage] = useState<StatusMessage>({ key: 'status.ready' });
@@ -573,6 +581,10 @@ export function App() {
     setIsPlaying(false);
     setTimelineKeySelection(null);
     setTimelineClipboard(null);
+    setAtlasExportOptions((options) => ({
+      ...options,
+      atlasName: sanitizeAtlasOptionName(nextProject.document.name)
+    }));
     setSelection(nextProject.document.bones[0] ? { type: 'bone', name: nextProject.document.bones[0].name } : null);
     setLocalizedStatus('status.loadedProject', { name: nextProject.document.name });
   }
@@ -908,14 +920,17 @@ export function App() {
     }
 
     try {
-      const exportResult = await window.suwol.project.exportSuwol2DJson(projectFilePath, project);
+      const exportResult = await window.suwol.project.exportSuwol2DJson(projectFilePath, project, normalizeAtlasExportOptions(atlasExportOptions, document.name));
       if (!exportResult) return;
       setProject((value) => ({ ...value, lastExportPath: exportResult.exportPath }));
       const textureSummary = exportResult.texturePaths.length
         ? t('status.texturesCopied', { textures: exportResult.texturePaths.map((path) => path.split(/[\\/]/).pop()).join(', ') })
         : t('status.noTexturesCopied');
+      const atlasSummary = exportResult.atlasPaths.length
+        ? ` ${t('status.atlasCreated', { files: exportResult.atlasPaths.map((path) => path.split(/[\\/]/).pop()).join(', ') })}`
+        : '';
       const warningSummary = exportWarnings.length ? ` ${t('status.warningCount', { count: exportWarnings.length })}` : '';
-      setLocalizedStatus('status.exportCompleted', { path: exportResult.exportPath, textures: textureSummary, warnings: warningSummary });
+      setLocalizedStatus('status.exportCompleted', { path: exportResult.exportPath, textures: `${textureSummary}${atlasSummary}`, warnings: warningSummary });
     } catch (error) {
       setStatus(getErrorMessage(error));
     }
@@ -936,17 +951,20 @@ export function App() {
     }
 
     try {
-      const exportResult = await window.suwol.project.exportSuwol2DAsset(projectFilePath, project);
+      const exportResult = await window.suwol.project.exportSuwol2DAsset(projectFilePath, project, normalizeAtlasExportOptions(atlasExportOptions, document.name));
       if (!exportResult) return;
       setProject((value) => ({ ...value, lastExportPath: exportResult.exportPath }));
       const textureSummary = exportResult.texturePaths.length
         ? t('status.texturesCopied', { textures: exportResult.texturePaths.map((path) => path.split(/[\\/]/).pop()).join(', ') })
         : t('status.noTexturesCopied');
+      const atlasSummary = exportResult.atlasPaths.length
+        ? ` ${t('status.atlasCreated', { files: exportResult.atlasPaths.map((path) => path.split(/[\\/]/).pop()).join(', ') })}`
+        : '';
       const warningSummary = exportWarnings.length ? ` ${t('status.warningCount', { count: exportWarnings.length })}` : '';
       setLocalizedStatus('status.exportCompletedWithDebug', {
         path: exportResult.exportPath,
         debugPath: exportResult.debugJsonPath,
-        textures: textureSummary,
+        textures: `${textureSummary}${atlasSummary}`,
         warnings: warningSummary
       });
     } catch (error) {
@@ -1485,6 +1503,49 @@ export function App() {
           <input type="number" value={round(currentTime)} min={0} step={safeSnapStep} onChange={(event) => setScrubTime(toNumber(event.target.value, currentTime))} />
         </label>
         <div className="toolbar-spacer" />
+        <div className="export-options" aria-label={t('export.atlasOptions')}>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={atlasExportOptions.createAtlas}
+              onChange={(event) => setAtlasExportOptions((options) => ({ ...options, createAtlas: event.target.checked }))}
+            />
+            <span>{t('export.createAtlas')}</span>
+          </label>
+          <label className="compact-input">
+            <span>{t('export.atlasName')}</span>
+            <input
+              type="text"
+              value={atlasExportOptions.atlasName}
+              disabled={!atlasExportOptions.createAtlas}
+              onChange={(event) => setAtlasExportOptions((options) => ({ ...options, atlasName: event.target.value }))}
+            />
+          </label>
+          <label className="number-chip">
+            <span>{t('export.atlasMaxSize')}</span>
+            <input
+              type="number"
+              min={64}
+              max={4096}
+              step={64}
+              value={atlasExportOptions.atlasMaxSize}
+              disabled={!atlasExportOptions.createAtlas}
+              onChange={(event) => setAtlasExportOptions((options) => ({ ...options, atlasMaxSize: clampInteger(toNumber(event.target.value, options.atlasMaxSize), 2048, 64, 4096) }))}
+            />
+          </label>
+          <label className="number-chip">
+            <span>{t('export.atlasPadding')}</span>
+            <input
+              type="number"
+              min={0}
+              max={128}
+              step={1}
+              value={atlasExportOptions.atlasPadding}
+              disabled={!atlasExportOptions.createAtlas}
+              onChange={(event) => setAtlasExportOptions((options) => ({ ...options, atlasPadding: clampInteger(toNumber(event.target.value, options.atlasPadding), 2, 0, 128) }))}
+            />
+          </label>
+        </div>
         <ToolbarButton label={t('toolbar.exportJson')} onClick={handleExportJson} icon={<Download size={17} />} />
         <ToolbarButton label={t('toolbar.exportSuwol2D')} onClick={handleExportSuwol2DAsset} icon={<Download size={17} />} />
         <LanguageSelector
@@ -5928,6 +5989,27 @@ function estimateBoneLength(document: Suwol2DDocument, boneName: string): number
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function normalizeAtlasExportOptions(options: Suwol2DAtlasExportOptions, documentName: string): Suwol2DAtlasExportOptions {
+  return {
+    createAtlas: options.createAtlas === true,
+    atlasName: sanitizeAtlasOptionName(options.atlasName || documentName || 'character'),
+    atlasMaxSize: clampInteger(options.atlasMaxSize, 2048, 64, 4096),
+    atlasPadding: clampInteger(options.atlasPadding, 2, 0, 128)
+  };
+}
+
+function sanitizeAtlasOptionName(value: string): string {
+  return (value || 'character').trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_') || 'character';
+}
+
+function clampInteger(value: number, fallback: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.max(min, Math.min(max, Math.trunc(value)));
 }
 
 function toNumber(value: string, fallback: number): number {

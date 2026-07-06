@@ -23,6 +23,7 @@ namespace Suwol.Suwol2D
         private readonly Suwol2DEventTimelineDispatcher eventDispatcher = new Suwol2DEventTimelineDispatcher();
         private Suwol2DSkeleton skeleton;
         private Suwol2DSkinResolver skinResolver;
+        private Suwol2DAtlasLookup atlasLookup;
         private Suwol2DAnimationPlayer animationPlayer;
         private Suwol2DStateMachineController stateMachineController;
         private string attachmentSignature = string.Empty;
@@ -156,6 +157,7 @@ namespace Suwol.Suwol2D
             }
 
             skinResolver = new Suwol2DSkinResolver(skeleton, data.skins);
+            atlasLookup = new Suwol2DAtlasLookup(data.atlases, textures);
             animationPlayer = new Suwol2DAnimationPlayer(skeleton);
             animationPlayer.SetAnimationSpeed(animationSpeed);
             stateMachineController = new Suwol2DStateMachineController(this, data.stateMachines);
@@ -475,8 +477,8 @@ namespace Suwol.Suwol2D
                 return;
             }
 
-            regionRenderer.Sync(skeleton, transform, textures, defaultMaterial, skinResolver);
-            meshAttachmentRenderer.Sync(skeleton, transform, textures, defaultMaterial, skinResolver);
+            regionRenderer.Sync(skeleton, transform, textures, defaultMaterial, skinResolver, atlasLookup);
+            meshAttachmentRenderer.Sync(skeleton, transform, textures, defaultMaterial, skinResolver, atlasLookup);
             attachmentSignature = CreateAttachmentSignature();
         }
 
@@ -490,6 +492,7 @@ namespace Suwol.Suwol2D
             attachmentSignature = string.Empty;
             skeleton = null;
             skinResolver = null;
+            atlasLookup = null;
             animationPlayer = null;
             stateMachineController = null;
             eventDispatcher.Reset(string.Empty);
