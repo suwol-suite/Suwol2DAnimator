@@ -285,6 +285,7 @@ matches a region in the `.suwol2d` `atlases` array.
 - `docs/localization-i18n-v15.md`
 - `docs/brush-editing-canvas-direct-editing-v16.md`
 - `docs/atlas-packing-texture-atlas-v17.md`
+- `docs/atlas-qa-release-refresh-v18.md`
 - `unity/com.suwol.suwol2d/Documentation~/index.md`
 - `unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md`
 - `unity/com.suwol.suwol2d/Documentation~/atlas-packing-texture-atlas-v17.md`
