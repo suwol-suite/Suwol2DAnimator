@@ -15,7 +15,7 @@ new animation features.
 - Brush weight/deform painting
 - Animation layers, blend trees, or additive animation
 - Full UI redesign
-- Code signing certificates, secrets, auto updater, telemetry, or licensing
+- Code signing certificates, secrets, auto updater, telemetry, or unrelated licensing changes
 - A separate Unity project inside this repository
 
 ## Required Artifacts
@@ -35,6 +35,7 @@ release/com.suwol.suwol2d-0.12.0.zip
 release/checksums.txt
 release/checksums.txt.asc
 release/checksums-linux-x64.txt
+release/suwol2d-linux-x64-update.json
 suwol-release-public-key.asc
 ```
 
@@ -62,6 +63,7 @@ This checks:
 - packaged `resources/unity/com.suwol.suwol2d`
 - packaged `resources/docs`
 - packaged README, LICENSE, and third-party notices
+- packaged metadata shows project license `Apache-2.0`
 
 Portable executable smoke:
 
@@ -86,9 +88,10 @@ Confirm:
 - Artifact `suwol-2d-animator-linux-x64-zip` is uploaded.
 - Artifact includes `Suwol 2D Animator-0.12.0-linux-x64.zip`.
 - Artifact includes `checksums-linux-x64.txt`.
+- Artifact includes `suwol2d-linux-x64-update.json`.
 - Tag push such as `v0.12.0` runs the workflow automatically.
-- Tag-triggered run uploads ZIP and checksum files to the GitHub Release.
-- Workflow does not build AppImage, deb, rpm, Snap, updater metadata, or signing assets.
+- Tag-triggered run uploads ZIP, checksum, and update manifest files to the GitHub Release.
+- Workflow does not build AppImage, deb, rpm, Snap, Windows/macOS updater metadata, or signing assets.
 - Workflow does not require `verify:unity`.
 
 ## Signed Linux Release QA

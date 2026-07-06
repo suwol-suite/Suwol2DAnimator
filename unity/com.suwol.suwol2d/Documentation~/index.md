@@ -2,6 +2,7 @@
 
 Package: `com.suwol.suwol2d`  
 Version: `0.12.0`  
+License: `Apache-2.0`
 Minimum Unity version: `6000.0`
 
 This package contains the Unity runtime and importer for assets exported by the

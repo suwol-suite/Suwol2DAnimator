@@ -10,6 +10,11 @@ Target version: `0.12.0`
 - [ ] Unity package displayName is `Suwol 2D Animator Runtime`.
 - [ ] About panel shows app and Unity package version.
 - [ ] `LICENSE` and `THIRD-PARTY-NOTICES.md` are present.
+- [ ] Root `package.json` license is `Apache-2.0`.
+- [ ] Unity package `package.json` license is `Apache-2.0`.
+- [ ] About panel license value is `Apache License 2.0`.
+- [ ] `LICENSE` contains the Apache License 2.0 text and `Copyright 2026 Suwol`.
+- [ ] `THIRD-PARTY-NOTICES.md` separates project license from dependency licenses.
 - [ ] Code signing status is documented. Current v12 status: no signing configuration or certificate is stored in this repository.
 
 ## Required Verification
@@ -53,9 +58,10 @@ npm.cmd run release:checksums
 - [ ] Workflow `Release Linux ZIP` is visible in GitHub Actions.
 - [ ] Manual `workflow_dispatch` run creates the Linux x64 ZIP artifact.
 - [ ] `release/checksums-linux-x64.txt` is included in the workflow artifact.
+- [ ] `release/suwol2d-linux-x64-update.json` is included in the workflow artifact.
 - [ ] Tag push `v*.*.*` runs the workflow automatically.
-- [ ] Tag-triggered run uploads ZIP and checksum files to the GitHub Release.
-- [ ] Workflow builds only ZIP, not AppImage, deb, rpm, Snap, or updater assets.
+- [ ] Tag-triggered run uploads ZIP, checksum, and update manifest files to the GitHub Release.
+- [ ] Workflow builds only ZIP, checksum, and Linux update manifest, not AppImage, deb, rpm, Snap, or Windows/macOS updater assets.
 - [ ] Unity smoke checks are not required in this Linux ZIP workflow.
 
 ## Signed Linux Release GitHub Actions
@@ -100,6 +106,7 @@ npm.cmd run release:checksums
 - [ ] Optional NSIS setup `.exe`
 - [ ] Linux x64 `.zip`
 - [ ] `release/checksums-linux-x64.txt`
+- [ ] `release/suwol2d-linux-x64-update.json`
 - [ ] Linux x64 `.AppImage`
 - [ ] Linux x64 `.tar.gz`
 - [ ] `release/checksums.txt`

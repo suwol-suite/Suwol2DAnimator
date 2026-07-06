@@ -5,6 +5,8 @@ repository.
 
 Version: `0.12.0`
 
+License: `Apache-2.0`
+
 Use Unity Package Manager's **Add package from disk** command and select:
 
 ```text

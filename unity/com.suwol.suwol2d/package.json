@@ -4,6 +4,7 @@
   "version": "0.12.0",
   "unity": "6000.0",
   "description": "Unity runtime and importer for Suwol 2D Animator assets.",
+  "license": "Apache-2.0",
   "dependencies": {
     "com.unity.modules.jsonserialize": "1.0.0"
   },

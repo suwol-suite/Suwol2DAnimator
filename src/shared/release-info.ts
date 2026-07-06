@@ -16,7 +16,7 @@ export const suwolReleaseInfo = {
     'animation mixing',
     'state machines'
   ],
-  license: 'UNLICENSED / Internal development build',
+  license: 'Apache License 2.0',
   docsPath: 'resources/docs',
   unityPackagePath: 'resources/unity/com.suwol.suwol2d'
 } as const;

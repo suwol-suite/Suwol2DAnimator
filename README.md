@@ -45,8 +45,9 @@ under `unity/com.suwol.suwol2d/`.
 - Optional PNG texture atlas export with Unity atlas UV fallback
 
 Out of scope for this release: Spine import/export/runtime compatibility,
-clipping, rotated/trimmed/multi-page atlases, animation layers, blend trees, additive animation,
-telemetry, auto-updater, and licensing/payment systems.
+clipping, rotated/trimmed/multi-page atlases, animation layers, blend trees,
+additive animation, telemetry, Windows/macOS auto-updaters, and
+licensing/payment systems.
 
 ## Install And Run
 
@@ -114,15 +115,16 @@ Actions > Release Linux ZIP
 ```
 
 The workflow can be run manually, and it also runs automatically when a
-`v*.*.*` tag is pushed. It uploads the Linux x64 ZIP and checksum file as a
-workflow artifact. Tag-triggered runs also upload the ZIP and checksum to the
-matching GitHub Release.
+`v*.*.*` tag is pushed. It uploads the Linux x64 ZIP, checksum file, and Linux
+update manifest as a workflow artifact. Tag-triggered runs also upload the ZIP,
+checksum, and update manifest to the matching GitHub Release.
 
 Expected artifact names:
 
 ```text
 release/Suwol 2D Animator-0.12.0-linux-x64.zip
 release/checksums-linux-x64.txt
+release/suwol2d-linux-x64-update.json
 ```
 
 Create a tag release:
@@ -138,8 +140,9 @@ Local Linux ZIP build command:
 npm.cmd run dist:linux:zip
 ```
 
-The ZIP workflow intentionally builds only the ZIP target. It does not build
-AppImage, deb, rpm, Snap, auto-updater metadata, or code-signing assets.
+The ZIP workflow intentionally builds only the ZIP target plus checksum and
+Linux ZIP update manifest. It does not build AppImage, deb, rpm, Snap, Windows
+or macOS updater metadata, or code-signing assets.
 
 ## Signed Linux Release
 
@@ -307,7 +310,9 @@ runs include the ZIP, `checksums-linux-x64.txt`, and
 
 ## License
 
-Current repository status: `UNLICENSED / Internal development build`.
+Suwol 2D Animator is licensed under the Apache License 2.0.
+
+See [LICENSE](LICENSE) for details.
 
 See:
 

@@ -1,8 +1,11 @@
 # Third-Party Notices
 
-Suwol 2D Animator is currently marked as `UNLICENSED / Internal development build`.
-Before any public distribution, perform a full dependency license review,
-including transitive npm dependencies and Unity package dependencies.
+Suwol 2D Animator is licensed under the Apache License 2.0.
+See `LICENSE` for the project license.
+
+This file summarizes third-party notices and dependency license metadata. These
+third-party licenses are separate from the Suwol 2D Animator project license.
+Do not change dependency license names unless upstream package metadata changes.
 
 ## Direct NPM Dependencies
 
@@ -14,6 +17,7 @@ readiness work:
 | electron | 43.0.0 | MIT |
 | electron-builder | 26.15.3 | MIT |
 | electron-vite | 5.0.0 | MIT |
+| extract-zip | 2.0.1 | BSD-2-Clause |
 | react | 19.2.7 | MIT |
 | react-dom | 19.2.7 | MIT |
 | lucide-react | 1.23.0 | ISC |

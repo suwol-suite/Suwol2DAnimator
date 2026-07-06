@@ -105,6 +105,8 @@ Release assets unless explicitly instructed.
 - No GitHub token is used by the app updater.
 - The app uses only the public GitHub Releases API.
 - No code signing secrets are stored in this repository.
+- Project license metadata remains `Apache-2.0`; release checks should verify
+  `LICENSE` and `THIRD-PARTY-NOTICES.md`.
 - Checksum verification is required before staging.
 - A checksum failure blocks installation.
 

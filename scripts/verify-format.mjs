@@ -428,7 +428,8 @@ async function validateReleaseReadinessMetadata() {
 
   assert.equal(rootPackage.name, 'suwol-2d-animator', 'root package name should be release-ready.');
   assert.equal(rootPackage.version, suwolReleaseInfo.appVersion, 'root package version should match release info.');
-  assert.equal(rootPackage.license, 'UNLICENSED', 'root package license should be explicit.');
+  assert.equal(rootPackage.license, 'Apache-2.0', 'root package license should be Apache-2.0.');
+  assert.equal(unityPackage.license, 'Apache-2.0', 'Unity package license should be Apache-2.0.');
   assert.equal(unityPackage.name, suwolReleaseInfo.unityPackageName, 'Unity package name should match release info.');
   assert.equal(unityPackage.displayName, suwolReleaseInfo.unityPackageDisplayName, 'Unity package displayName should match release info.');
   assert.equal(unityPackage.version, suwolReleaseInfo.unityPackageVersion, 'Unity package version should match release info.');

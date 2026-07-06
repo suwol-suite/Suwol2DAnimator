@@ -6,7 +6,7 @@
   "author": {
     "name": "Suwol"
   },
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

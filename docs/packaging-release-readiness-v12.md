@@ -15,7 +15,7 @@ Linux release uploads. It does not add new animation features.
 - Generate local brand icons and Windows ICO assets.
 - Include Unity UPM package and docs as packaged app resources.
 - Add release verification, checksum, Unity package zip, and packaged smoke scripts.
-- Document release checklist, artifacts, license status, and troubleshooting.
+- Document release checklist, artifacts, Apache-2.0 license status, and troubleshooting.
 
 ## Electron Packaging
 
@@ -34,6 +34,7 @@ Important settings:
 - Windows targets: `dir`, `portable`, `nsis`
 - Linux targets: `AppImage`, `tar.gz`, and `zip` for `x64`
 - bundled resources: Unity UPM package, docs, README, LICENSE, THIRD-PARTY notices
+- project license: `Apache-2.0`
 
 Commands:
 
@@ -66,7 +67,8 @@ Behavior:
 - Uses Node.js 22 and `npm ci`.
 - Runs `typecheck`, `build`, and `verify:format`.
 - Builds only `electron-builder --linux zip --x64 --publish never`.
-- Uploads `release/*.zip` and `release/checksums-linux-x64.txt` as a workflow artifact.
+- Uploads `release/*.zip`, `release/checksums-linux-x64.txt`, and
+  `release/suwol2d-linux-x64-update.json` as a workflow artifact.
 - Uploads the same files to the matching GitHub Release on tag-triggered runs.
 
 The workflow intentionally does not run `verify:unity` because GitHub-hosted
@@ -74,8 +76,9 @@ Linux runners do not provide the project Unity editor by default. Unity runtime
 and importer validation remains covered by the existing local or dedicated
 Unity smoke flow.
 
-No AppImage, deb, rpm, Snap, auto-updater, code-signing, or external deployment
-server is configured for the Linux ZIP path.
+No AppImage, deb, rpm, Snap, Windows/macOS updater, code-signing, or external
+deployment server is configured for the Linux ZIP path. The only update
+metadata created by this workflow is the Linux ZIP update manifest.
 
 ## GitHub Actions Signed Linux Release
 
@@ -137,8 +140,9 @@ release/com.suwol.suwol2d-0.12.0.zip
 ```
 
 The zip includes package metadata, Runtime, Editor, Samples~, Documentation~,
-and package README files. It excludes Unity project caches such as Library,
-Temp, obj, generated project files, and solution files.
+and package README files. The Unity package metadata declares
+`license: Apache-2.0`. It excludes Unity project caches such as Library, Temp,
+obj, generated project files, and solution files.
 
 ## Release Artifacts
 
@@ -150,6 +154,7 @@ release/
   Suwol 2D Animator-0.12.0-portable.exe
   Suwol 2D Animator Setup 0.12.0.exe
   Suwol 2D Animator-0.12.0-linux-x64.zip
+  suwol2d-linux-x64-update.json
   Suwol 2D Animator-0.12.0-linux-x64.AppImage
   Suwol 2D Animator-0.12.0-linux-x64.tar.gz
   com.suwol.suwol2d-0.12.0.zip
@@ -181,8 +186,10 @@ resources/unity/com.suwol.suwol2d
   other release artifacts.
 - If sample textures fail in a packaged build, confirm `extraResources` copied
   `unity/com.suwol.suwol2d/Samples~/`.
-- If public distribution is planned, complete third-party license review and
-  code signing setup first.
+- Before public distribution, verify `LICENSE`, `THIRD-PARTY-NOTICES.md`, and
+  package metadata all identify the project license as `Apache-2.0`.
+- Complete code signing setup through secure release infrastructure if signing
+  is required.
 - If the Linux ZIP workflow fails during package upload, confirm the build
   produced `release/Suwol 2D Animator-0.12.0-linux-x64.zip`.
 - If the signed Linux release workflow fails during signing, confirm
