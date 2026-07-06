@@ -10,7 +10,8 @@ import type {
   Suwol2DMeshAttachment,
   Suwol2DStateMachine,
   Suwol2DSlotTimeline,
-  Suwol2DInterpolation
+  Suwol2DInterpolation,
+  Suwol2DTransformConstraint
 } from './suwol2d-format';
 import { defaultSkinName, getEffectiveSkins } from './skins.ts';
 import type { TranslationKey, TranslationParams } from './i18n/types';
@@ -148,6 +149,7 @@ export function validateDocument(document: Suwol2DDocument): ValidationResult {
   }
 
   validateIkConstraints(issues, document.ikConstraints ?? [], document, boneNames);
+  validateTransformConstraints(issues, document.transformConstraints ?? [], boneNames);
   validateStateMachines(issues, document.stateMachines ?? [], animationNames, document.animations);
   validateAtlases(issues, document.atlases ?? []);
 
@@ -163,6 +165,11 @@ function localizeValidationIssue(issue: ValidationIssue): ValidationIssue {
   }
 
   const message = issue.message;
+  const transformDuplicate = message.match(/^Duplicate transform constraint name: (.+)$/);
+  if (transformDuplicate) {
+    return withKey(issue, 'validation.transformConstraintDuplicateName', { name: transformDuplicate[1] });
+  }
+
   const duplicate = message.match(/^Duplicate (.+?) name: (.+)$/);
   if (duplicate) {
     return withKey(issue, 'validation.duplicateName', { type: duplicate[1], name: duplicate[2] });
@@ -176,6 +183,22 @@ function localizeValidationIssue(issue: ValidationIssue): ValidationIssue {
   const animationMissingBone = message.match(/^Animation '(.+?)' references missing bone '(.+?)'\.$/);
   if (animationMissingBone) {
     return withKey(issue, 'validation.missingBone', { owner: `Animation '${animationMissingBone[1]}'`, name: animationMissingBone[2] });
+  }
+
+  const transformMissingBone = message.match(/^Transform constraint '(.+?)' references missing bone '(.+?)'\.$/);
+  if (transformMissingBone) {
+    return withKey(issue, 'validation.transformConstraintMissingBone', {
+      constraint: transformMissingBone[1],
+      bone: transformMissingBone[2]
+    });
+  }
+
+  const transformMissingTarget = message.match(/^Transform constraint '(.+?)' references missing target bone '(.+?)'\.$/);
+  if (transformMissingTarget) {
+    return withKey(issue, 'validation.transformConstraintMissingTarget', {
+      constraint: transformMissingTarget[1],
+      bone: transformMissingTarget[2]
+    });
   }
 
   const missingBone = message.match(/^(.+?) '(.+?)' references missing (parent |child |target |weight )?bone '(.+?)'\.$/);
@@ -319,6 +342,24 @@ function localizeValidationIssue(issue: ValidationIssue): ValidationIssue {
       constraint: ikMissingBone[1],
       role: ikMissingBone[2],
       bone: ikMissingBone[3]
+    });
+  }
+
+  const transformSameBone = message.match(/^Transform constraint '(.+?)' uses the same bone and targetBone\.$/);
+  if (transformSameBone) {
+    return withKey(issue, 'validation.transformConstraintSameBone', { constraint: transformSameBone[1] });
+  }
+
+  const transformInvalidMix = message.match(/^Transform constraint '(.+?)' has invalid mix\.$/);
+  if (transformInvalidMix) {
+    return withKey(issue, 'validation.transformConstraintInvalidMix', { constraint: transformInvalidMix[1] });
+  }
+
+  const transformDuplicateOrder = message.match(/^Transform constraint '(.+?)' shares order (.+?) with another transform constraint\.$/);
+  if (transformDuplicateOrder) {
+    return withKey(issue, 'validation.transformConstraintDuplicateOrder', {
+      constraint: transformDuplicateOrder[1],
+      order: transformDuplicateOrder[2]
     });
   }
 
@@ -1141,6 +1182,56 @@ function validateIkConstraints(
       issues.push({ severity: 'error', message: `IK constraint '${label}' has invalid order.` });
     } else if (orders.has(constraint.order)) {
       issues.push({ severity: 'warning', message: `IK constraint '${label}' shares order ${constraint.order} with another IK constraint.` });
+    }
+    orders.add(constraint.order);
+  }
+}
+
+function validateTransformConstraints(
+  issues: ValidationIssue[],
+  constraints: Suwol2DTransformConstraint[],
+  boneNames: Set<string>
+): void {
+  const names = new Set<string>();
+  const orders = new Set<number>();
+
+  for (const constraint of constraints) {
+    const name = constraint.name?.trim() ?? '';
+    const label = name || '(unnamed)';
+    if (!name) {
+      issues.push({ severity: 'error', message: 'Transform constraint has an empty name.' });
+    } else if (names.has(name)) {
+      issues.push({ severity: 'error', message: `Duplicate transform constraint name: ${name}` });
+    }
+    names.add(name);
+
+    if (!boneNames.has(constraint.bone)) {
+      issues.push({ severity: 'error', message: `Transform constraint '${label}' references missing bone '${constraint.bone}'.` });
+    }
+
+    if (!boneNames.has(constraint.targetBone)) {
+      issues.push({ severity: 'error', message: `Transform constraint '${label}' references missing target bone '${constraint.targetBone}'.` });
+    }
+
+    if (constraint.bone && constraint.bone === constraint.targetBone) {
+      issues.push({ severity: 'error', message: `Transform constraint '${label}' uses the same bone and targetBone.` });
+    }
+
+    const mixes = [constraint.translateMix, constraint.rotateMix, constraint.scaleMix];
+    if (mixes.some((mix) => !Number.isFinite(mix))) {
+      issues.push({ severity: 'error', message: `Transform constraint '${label}' has invalid mix.` });
+    } else if (mixes.some((mix) => mix < 0 || mix > 1)) {
+      issues.push({ severity: 'warning', message: `Transform constraint '${label}' mix is outside 0..1 and will be clamped on export.` });
+    }
+
+    if (![constraint.offsetX, constraint.offsetY, constraint.offsetRotation, constraint.offsetScaleX, constraint.offsetScaleY].every(Number.isFinite)) {
+      issues.push({ severity: 'error', message: `Transform constraint '${label}' contains NaN or Infinity.` });
+    }
+
+    if (!Number.isFinite(constraint.order)) {
+      issues.push({ severity: 'error', message: `Transform constraint '${label}' has invalid order.` });
+    } else if (orders.has(constraint.order)) {
+      issues.push({ severity: 'warning', message: `Transform constraint '${label}' shares order ${constraint.order} with another transform constraint.` });
     }
     orders.add(constraint.order);
   }

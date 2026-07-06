@@ -24,6 +24,7 @@ Suwol 2D Animator Electron editor.
 - Weighted mesh deformation
 - Deform timelines
 - 2-bone IK constraints
+- Transform constraints
 - Skins and slot attachment swaps
 - Attachment timelines
 - Draw order timelines
@@ -36,6 +37,7 @@ Suwol 2D Animator Electron editor.
 - Explicit animation duration exported by the editor
 - Optional texture atlas UV lookup with individual texture fallback
 - Convex polygon clipping attachments
+- Transform constraints with translate, rotate, scale mix, offsets, enabled, and order
 
 ## Samples
 
@@ -51,6 +53,7 @@ Suwol 2D Animator Electron editor.
 - Timeline Usability v11: `Samples~/TimelineUsabilityV11`
 - Curve Interpolation v20: `Samples~/CurveInterpolationV20`
 - Clipping Mask v21: `Samples~/ClippingMaskV21`
+- Transform Constraint v22: `Samples~/TransformConstraintV22`
 
 ## API Overview
 
@@ -68,6 +71,7 @@ skin switching, slot attachment overrides, and animation event callbacks.
 - No Spine compatibility or Spine runtime integration.
 - Convex clipping polygons only; concave masks are not supported.
 - No rotated, trimmed, or multi-page atlas runtime.
+- No path constraint, multi-target transform constraint, or constraint timeline support.
 - No blend tree, additive animation, or animation layer system.
 - No physics, audio, telemetry, licensing, payment, or cloud login system.
 
@@ -96,3 +100,4 @@ skin switching, slot attachment overrides, and animation event callbacks.
 - `atlas-packing-texture-atlas-v17.md`
 - `curve-interpolation-editor-v20.md`
 - `clipping-mask-v21.md`
+- `transform-constraint-v22.md`

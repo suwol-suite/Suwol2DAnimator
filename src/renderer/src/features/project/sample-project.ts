@@ -3,6 +3,7 @@ import type {
   Suwol2DClippingAttachment,
   Suwol2DDocument,
   Suwol2DMeshAttachment,
+  Suwol2DTransformConstraint,
   Suwol2DVertexOffset
 } from '../../../../shared/suwol2d-format';
 import { cloneAttachment, cloneAttachments, syncTopLevelAttachmentsFromSkins } from '../../../../shared/skins.ts';
@@ -1135,6 +1136,141 @@ export function createClippingSampleDocument(images: ImportedImage[]): Suwol2DDo
         .sort((a, b) => a.drawOrder - b.drawOrder || a.slot.localeCompare(b.slot));
     }
   }
+
+  return withDefaultSkin(document);
+}
+
+export function createTransformConstraintSampleDocument(images: ImportedImage[]): Suwol2DDocument {
+  const bodyImage = images.find((image) => image.name === 'body') ?? images[0];
+  const armImage = images.find((image) => image.name === 'arm') ?? images[1] ?? images[0];
+  const swordImage = images.find((image) => image.name === 'sword') ?? images[2] ?? images[0];
+  const weaponFollowHand: Suwol2DTransformConstraint = {
+    name: 'weapon_follow_hand',
+    bone: 'weapon',
+    targetBone: 'hand',
+    enabled: true,
+    order: 0,
+    translateMix: 1,
+    rotateMix: 1,
+    scaleMix: 0,
+    offsetX: 0,
+    offsetY: 0,
+    offsetRotation: 0,
+    offsetScaleX: 0,
+    offsetScaleY: 0
+  };
+
+  const document: Suwol2DDocument = {
+    version: 0,
+    name: 'sample_transform_constraint',
+    bones: [
+      { name: 'root', parent: '', x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 },
+      { name: 'body', parent: 'root', x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 },
+      { name: 'hand', parent: 'body', x: 0.42, y: 0.24, rotation: -18, scaleX: 1, scaleY: 1 },
+      { name: 'weapon', parent: 'body', x: -0.24, y: -0.22, rotation: -60, scaleX: 1, scaleY: 1 }
+    ],
+    slots: [
+      { name: 'body_slot', bone: 'body', attachment: 'body', drawOrder: 0 },
+      { name: 'hand_slot', bone: 'hand', attachment: 'hand', drawOrder: 1 },
+      { name: 'weapon_slot', bone: 'weapon', attachment: 'weapon', drawOrder: 2 }
+    ],
+    skins: [{ name: 'default', attachments: [] }],
+    attachments: [
+      {
+        name: 'body',
+        slot: 'body_slot',
+        type: 'region',
+        image: bodyImage?.name ?? 'body',
+        x: 0,
+        y: 0,
+        rotation: 0,
+        width: 0.9,
+        height: 1.35,
+        scaleX: 1,
+        scaleY: 1
+      },
+      {
+        name: 'hand',
+        slot: 'hand_slot',
+        type: 'region',
+        image: armImage?.name ?? 'arm',
+        x: 0.18,
+        y: -0.24,
+        rotation: -18,
+        width: 0.26,
+        height: 0.85,
+        scaleX: 1,
+        scaleY: 1
+      },
+      {
+        name: 'weapon',
+        slot: 'weapon_slot',
+        type: 'region',
+        image: swordImage?.name ?? 'sword',
+        x: 0.28,
+        y: -0.02,
+        rotation: -12,
+        width: 0.18,
+        height: 0.95,
+        scaleX: 1,
+        scaleY: 1
+      }
+    ],
+    transformConstraints: [weaponFollowHand],
+    animations: [
+      {
+        name: 'swing',
+        loop: true,
+        duration: 1,
+        bones: [
+          {
+            bone: 'root',
+            translate: [
+              { time: 0, x: 0, y: 0, interpolation: 'easeInOut' },
+              { time: 0.5, x: 0, y: 0.08, interpolation: 'easeOut' },
+              { time: 1, x: 0, y: 0, interpolation: 'easeInOut' }
+            ],
+            rotate: [],
+            scale: []
+          },
+          {
+            bone: 'body',
+            translate: [],
+            rotate: [
+              { time: 0, rotation: -4, interpolation: 'easeInOut' },
+              { time: 0.5, rotation: 4, interpolation: 'easeInOut' },
+              { time: 1, rotation: -4, interpolation: 'easeInOut' }
+            ],
+            scale: []
+          },
+          {
+            bone: 'hand',
+            translate: [
+              { time: 0, x: 0.42, y: 0.24, interpolation: 'easeInOut' },
+              { time: 0.5, x: 0.62, y: 0.36, interpolation: 'easeOut' },
+              { time: 1, x: 0.42, y: 0.24, interpolation: 'easeInOut' }
+            ],
+            rotate: [
+              { time: 0, rotation: -64, interpolation: 'easeInOut' },
+              { time: 0.5, rotation: 48, interpolation: 'easeOut' },
+              { time: 1, rotation: -64, interpolation: 'easeInOut' }
+            ],
+            scale: []
+          }
+        ],
+        slots: [
+          {
+            slot: 'weapon_slot',
+            color: [
+              { time: 0, r: 1, g: 1, b: 1, a: 1, interpolation: 'linear' },
+              { time: 0.5, r: 0.85, g: 1, b: 1, a: 1, interpolation: 'easeOut' },
+              { time: 1, r: 1, g: 1, b: 1, a: 1, interpolation: 'linear' }
+            ]
+          }
+        ]
+      }
+    ]
+  };
 
   return withDefaultSkin(document);
 }

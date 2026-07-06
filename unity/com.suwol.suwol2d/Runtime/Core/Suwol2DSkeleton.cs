@@ -10,6 +10,7 @@ namespace Suwol.Suwol2D
         private readonly List<Suwol2DSlot> slots = new List<Suwol2DSlot>();
         private readonly List<Suwol2DAttachment> attachments = new List<Suwol2DAttachment>();
         private readonly List<Suwol2DIkConstraintData> ikConstraints = new List<Suwol2DIkConstraintData>();
+        private readonly List<Suwol2DTransformConstraintData> transformConstraints = new List<Suwol2DTransformConstraintData>();
         private readonly Dictionary<string, Suwol2DBone> bonesByName = new Dictionary<string, Suwol2DBone>();
         private readonly Dictionary<string, Suwol2DSlot> slotsByName = new Dictionary<string, Suwol2DSlot>();
         private readonly Dictionary<string, Suwol2DAttachment> attachmentsByName = new Dictionary<string, Suwol2DAttachment>();
@@ -20,6 +21,7 @@ namespace Suwol.Suwol2D
         public IReadOnlyList<Suwol2DSlot> Slots { get { return slots; } }
         public IReadOnlyList<Suwol2DAttachment> Attachments { get { return attachments; } }
         public IReadOnlyList<Suwol2DIkConstraintData> IkConstraints { get { return ikConstraints; } }
+        public IReadOnlyList<Suwol2DTransformConstraintData> TransformConstraints { get { return transformConstraints; } }
 
         private Suwol2DSkeleton()
         {
@@ -115,6 +117,7 @@ namespace Suwol.Suwol2D
             BuildAttachments(data.attachments, data.skins);
             BuildSlots(data.slots);
             BuildAnimations(data.animations);
+            BuildTransformConstraints(data.transformConstraints);
             BuildIkConstraints(data.ikConstraints);
             SetToSetupPose();
             UpdateWorldTransforms();
@@ -328,6 +331,40 @@ namespace Suwol.Suwol2D
             }
 
             ikConstraints.Sort((left, right) =>
+            {
+                var order = left.order.CompareTo(right.order);
+                return order != 0 ? order : string.CompareOrdinal(left.name, right.name);
+            });
+        }
+
+        private void BuildTransformConstraints(Suwol2DTransformConstraintData[] constraintData)
+        {
+            transformConstraints.Clear();
+            if (constraintData == null)
+            {
+                return;
+            }
+
+            var seenNames = new HashSet<string>();
+            for (var i = 0; i < constraintData.Length; i++)
+            {
+                var constraint = constraintData[i];
+                if (constraint == null || string.IsNullOrEmpty(constraint.name))
+                {
+                    continue;
+                }
+
+                if (seenNames.Contains(constraint.name))
+                {
+                    Debug.LogWarning("Skipped duplicate Suwol2D transform constraint: " + constraint.name);
+                    continue;
+                }
+
+                seenNames.Add(constraint.name);
+                transformConstraints.Add(constraint);
+            }
+
+            transformConstraints.Sort((left, right) =>
             {
                 var order = left.order.CompareTo(right.order);
                 return order != 0 ? order : string.CompareOrdinal(left.name, right.name);

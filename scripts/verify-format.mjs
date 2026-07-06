@@ -16,6 +16,7 @@ const {
   createSampleDocument,
   createSkinSampleDocument,
   createTimelineUsabilitySampleDocument,
+  createTransformConstraintSampleDocument,
   createWeightedMeshSampleDocument
 } = await import('../src/renderer/src/features/project/sample-project.ts');
 const { createUnityRuntimeExport } = await import('../src/shared/export-suwol2d.ts');
@@ -216,6 +217,24 @@ await validateSuwol2DPair({
   textureNames: ['body.png', 'arm.png', 'sword.png', 'axe.png']
 });
 
+const transformConstraintExport = await validateSamplePair({
+  label: 'transform constraint sample',
+  document: createTransformConstraintSampleDocument(importedImages),
+  samplePath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'TransformConstraintV22', 'sample_transform_constraint.suwol2d.json'),
+  expectedAttachmentTypes: ['region'],
+  expectedAnimationNames: ['swing'],
+  expectedTextureNames: ['body.png', 'arm.png', 'sword.png'],
+  expectedTransformConstraints: true,
+  compareExportToSample: true
+});
+validateTransformConstraintSample(transformConstraintExport);
+await validateSuwol2DPair({
+  samplePath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'TransformConstraintV22', 'sample_transform_constraint.suwol2d'),
+  debugJsonPath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'TransformConstraintV22', 'sample_transform_constraint.suwol2d.json'),
+  texturesPath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'TransformConstraintV22', 'Textures'),
+  textureNames: ['body.png', 'arm.png', 'sword.png']
+});
+
 const atlasPack = packAtlasImages(
   importedImages.slice(0, 2).map((image) => ({
     name: image.name,
@@ -252,6 +271,8 @@ for (const field of [
   'public Suwol2DAttachmentData[] attachments',
   'public Suwol2DAnimationData[] animations',
   'public Suwol2DAtlasData[] atlases',
+  'public Suwol2DTransformConstraintData[] transformConstraints',
+  'public sealed class Suwol2DTransformConstraintData',
   'public sealed class Suwol2DAtlasData',
   'public sealed class Suwol2DAtlasRegionData',
   'public Suwol2DAtlasRegionData[] regions',
@@ -267,6 +288,14 @@ for (const field of [
   'public float mix',
   'public int bendDirection',
   'public int order',
+  'public float translateMix',
+  'public float rotateMix',
+  'public float scaleMix',
+  'public float offsetX',
+  'public float offsetY',
+  'public float offsetRotation',
+  'public float offsetScaleX',
+  'public float offsetScaleY',
   'public float length',
   'public Suwol2DDeformTimelineData[] deforms',
   'public Suwol2DAttachmentTimelineData[] attachments',
@@ -330,6 +359,14 @@ for (const field of ['public static class Suwol2DInterpolation', 'Normalize(stri
   assert.ok(unityInterpolationRuntime.includes(field), `Suwol2DInterpolation is missing expected API: ${field}`);
 }
 
+const transformConstraintSolverRuntime = await readFile(
+  join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Runtime', 'Animation', 'Suwol2DTransformConstraintSolver.cs'),
+  'utf8'
+);
+for (const field of ['public static class Suwol2DTransformConstraintSolver', 'public static void Solve', 'TransformConstraints', 'Mathf.LerpAngle', 'SetLocalTransform']) {
+  assert.ok(transformConstraintSolverRuntime.includes(field), `Suwol2DTransformConstraintSolver is missing expected API: ${field}`);
+}
+
 const characterRuntime = await readFile(
   join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Runtime', 'Suwol2DCharacter.cs'),
   'utf8'
@@ -356,10 +393,18 @@ for (const field of [
   'Suwol2DAtlasLookup',
   'Suwol2DClippingContext',
   'BuildClippingContext',
+  'ValidateTransformConstraintsForRuntime',
+  'transform constraints -> IK',
   'public event Action<Suwol2DAnimationEvent> AnimationEvent'
 ]) {
   assert.ok(characterRuntime.includes(field), `Suwol2DCharacter is missing runtime skin API: ${field}`);
 }
+
+const animationPlayerRuntime = await readFile(
+  join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Runtime', 'Animation', 'Suwol2DAnimationPlayer.cs'),
+  'utf8'
+);
+assert.ok(animationPlayerRuntime.includes('Suwol2DTransformConstraintSolver.Solve'), 'Suwol2DAnimationPlayer should apply transform constraints before IK.');
 
 const importerRuntime = await readFile(
   join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Editor', 'Suwol2DAssetImporter.cs'),
@@ -373,6 +418,7 @@ for (const field of [
   'ValidateData',
   'ValidateStateMachines',
   'ValidateAtlases',
+  'ValidateTransformConstraints',
   'CollectAtlasImageNames',
   'SetStateMachineSummary',
   'SetInterpolationSummary',
@@ -444,7 +490,7 @@ const unitySmokeHelper = await readFile(
   join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Editor', 'Tests', 'Suwol2DRuntimeSmokeTests.cs'),
   'utf8'
 );
-for (const field of ['RunAll', 'ValidateImporterReimportRecovery', 'ValidateMalformedRuntimeJson', 'ValidateAnimationMixingStateMachineApi', 'ValidateAtlasLookupApi', 'ValidateCurveInterpolationApi', 'ValidateClippingMaskApi', 'Renderer view count']) {
+for (const field of ['RunAll', 'ValidateImporterReimportRecovery', 'ValidateMalformedRuntimeJson', 'ValidateAnimationMixingStateMachineApi', 'ValidateAtlasLookupApi', 'ValidateCurveInterpolationApi', 'ValidateClippingMaskApi', 'ValidateTransformConstraintApi', 'Renderer view count']) {
   assert.ok(unitySmokeHelper.includes(field), `Unity smoke helper is missing expected v9 marker: ${field}`);
 }
 
@@ -463,6 +509,7 @@ console.log(`- timeline usability sample durations: ${timelineUsabilityExport.an
 console.log(`- atlas sample regions: ${atlasPack.atlas.regions.map((region) => region.name).join(', ')}`);
 console.log(`- curve interpolation sample presets: ${collectInterpolationValues(interpolationExport).join(', ')}`);
 console.log(`- clipping sample vertices: ${clippingExport.attachments.find((attachment) => attachment.type === 'clipping').clippingVertices.length}`);
+console.log(`- transform constraint sample constraints: ${transformConstraintExport.transformConstraints.length}`);
 
 async function validateAllUnityPackageSamples() {
   const samplesRoot = join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~');
@@ -470,8 +517,8 @@ async function validateAllUnityPackageSamples() {
   const jsonFiles = files.filter((file) => file.endsWith('.suwol2d.json'));
   const suwol2dFiles = files.filter((file) => file.endsWith('.suwol2d'));
 
-  assert.ok(jsonFiles.length >= 12, 'Unity package should include all v0-v21 .suwol2d.json samples.');
-  assert.ok(suwol2dFiles.length >= 6, 'Unity package should include importer .suwol2d samples.');
+  assert.ok(jsonFiles.length >= 13, 'Unity package should include all v0-v22 .suwol2d.json samples.');
+  assert.ok(suwol2dFiles.length >= 7, 'Unity package should include importer .suwol2d samples.');
 
   for (const jsonFile of jsonFiles) {
     const document = JSON.parse(await readFile(jsonFile, 'utf8'));
@@ -559,6 +606,7 @@ async function validateReleaseReadinessMetadata() {
     'docs/atlas-packing-texture-atlas-v17.md',
     'docs/curve-interpolation-editor-v20.md',
     'docs/clipping-mask-v21.md',
+    'docs/transform-constraint-v22.md',
     'src/shared/i18n/types.ts',
     'src/shared/i18n/locales.ts',
     'src/shared/i18n/translate.ts',
@@ -571,6 +619,7 @@ async function validateReleaseReadinessMetadata() {
     'unity/com.suwol.suwol2d/Documentation~/atlas-packing-texture-atlas-v17.md',
     'unity/com.suwol.suwol2d/Documentation~/curve-interpolation-editor-v20.md',
     'unity/com.suwol.suwol2d/Documentation~/clipping-mask-v21.md',
+    'unity/com.suwol.suwol2d/Documentation~/transform-constraint-v22.md',
     'scripts/generate-icons.mjs',
     'scripts/create-checksums.mjs',
     'scripts/zip-unity-package.mjs',
@@ -596,8 +645,10 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(rootReadme.includes('docs/atlas-packing-texture-atlas-v17.md'), 'README should link v17 atlas docs.');
   assert.ok(rootReadme.includes('docs/curve-interpolation-editor-v20.md'), 'README should link v20 curve interpolation docs.');
   assert.ok(rootReadme.includes('docs/clipping-mask-v21.md'), 'README should link v21 clipping docs.');
+  assert.ok(rootReadme.includes('docs/transform-constraint-v22.md'), 'README should link v22 transform constraint docs.');
   assert.ok(rootReadme.includes('Optional PNG texture atlas export'), 'README should document atlas export support.');
   assert.ok(rootReadme.includes('Convex polygon clipping attachments'), 'README should document clipping support.');
+  assert.ok(rootReadme.includes('Transform constraints'), 'README should document transform constraint support.');
   assert.ok(rootReadme.includes('npm.cmd run release:unity-package'), 'README should document Unity package zip command.');
   assert.ok(rootReadme.includes('docs/manual-qa-dogfooding-v13.md'), 'README should link v13 manual QA docs.');
   assert.ok(releaseChecklist.includes('.github/workflows/release-linux-zip.yml'), 'Release checklist should include Linux ZIP workflow checks.');
@@ -617,6 +668,8 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(unityDocsIndex.includes('Keyframe interpolation presets'), 'Unity docs index should document interpolation presets.');
   assert.ok(unityDocsIndex.includes('clipping-mask-v21.md'), 'Unity docs index should link v21 clipping docs.');
   assert.ok(unityDocsIndex.includes('Convex polygon clipping attachments'), 'Unity docs index should document clipping support.');
+  assert.ok(unityDocsIndex.includes('transform-constraint-v22.md'), 'Unity docs index should link v22 transform constraint docs.');
+  assert.ok(unityDocsIndex.includes('Transform constraints'), 'Unity docs index should document transform constraints.');
   for (const workflowMarker of [
     'name: Release Linux ZIP',
     'workflow_dispatch:',
@@ -676,6 +729,7 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(unityDocsIndex.includes('packaging-release-readiness-v12.md'), 'Unity docs index should link v12 docs.');
   assert.ok(unityPackage.samples.some((sample) => sample.path === 'Samples~/TimelineUsabilityV11'), 'Unity package should list v11 sample.');
   assert.ok(unityPackage.samples.some((sample) => sample.path === 'Samples~/ClippingMaskV21'), 'Unity package should list v21 sample.');
+  assert.ok(unityPackage.samples.some((sample) => sample.path === 'Samples~/TransformConstraintV22'), 'Unity package should list v22 sample.');
 }
 
 async function walkFiles(root) {
@@ -766,6 +820,9 @@ async function validateGenericRuntimeDocument(document, label, filePath) {
   if ((document.ikConstraints ?? []).length > 0) {
     validateIkConstraints(document.ikConstraints, document, label);
   }
+  if ((document.transformConstraints ?? []).length > 0) {
+    validateTransformConstraints(document.transformConstraints, document, label);
+  }
   if ((document.stateMachines ?? []).length > 0) {
     validateStateMachines(document.stateMachines, document, label);
   }
@@ -833,6 +890,7 @@ async function validateSamplePair({
   samplePath,
   expectedAttachmentTypes,
   expectedIkConstraints = false,
+  expectedTransformConstraints = false,
   expectedStateMachine = false,
   expectedSkinNames = ['default'],
   expectedAnimationNames = ['idle', 'walk'],
@@ -851,8 +909,8 @@ async function validateSamplePair({
   const parsedExport = JSON.parse(JSON.stringify(exported, null, 2));
   const packageSample = JSON.parse(await readFile(samplePath, 'utf8'));
 
-  validateRuntimeDocument(parsedExport, `Electron ${label} export`, expectedAttachmentTypes, expectedIkConstraints, expectedStateMachine, expectedSkinNames, expectedAnimationNames, expectedTextureNames);
-  validateRuntimeDocument(packageSample, `Unity ${label}`, expectedAttachmentTypes, expectedIkConstraints, expectedStateMachine, expectedSkinNames, expectedAnimationNames, expectedTextureNames);
+  validateRuntimeDocument(parsedExport, `Electron ${label} export`, expectedAttachmentTypes, expectedIkConstraints, expectedStateMachine, expectedSkinNames, expectedAnimationNames, expectedTextureNames, expectedTransformConstraints);
+  validateRuntimeDocument(packageSample, `Unity ${label}`, expectedAttachmentTypes, expectedIkConstraints, expectedStateMachine, expectedSkinNames, expectedAnimationNames, expectedTextureNames, expectedTransformConstraints);
   if (compareExportToSample) {
     assert.deepEqual(parsedExport, packageSample, `Electron ${label} export should match the Unity package sample.`);
   }
@@ -867,7 +925,8 @@ function validateRuntimeDocument(
   expectedStateMachine,
   expectedSkinNames,
   expectedAnimationNames = ['idle', 'walk'],
-  expectedTextureNames = ['body.png', 'arm.png', 'body_armor.png', 'arm_armor.png', 'sword.png', 'axe.png']
+  expectedTextureNames = ['body.png', 'arm.png', 'body_armor.png', 'arm_armor.png', 'sword.png', 'axe.png'],
+  expectedTransformConstraints = false
 ) {
   const documentKeys = ['version', 'name', 'bones', 'slots', 'skins', 'attachments', 'animations'];
   if (Object.hasOwn(document, 'atlases')) {
@@ -875,6 +934,9 @@ function validateRuntimeDocument(
   }
   if (Object.hasOwn(document, 'ikConstraints')) {
     documentKeys.push('ikConstraints');
+  }
+  if (Object.hasOwn(document, 'transformConstraints')) {
+    documentKeys.push('transformConstraints');
   }
   if (Object.hasOwn(document, 'stateMachines')) {
     documentKeys.push('stateMachines');
@@ -1015,6 +1077,12 @@ function validateRuntimeDocument(
     assert.ok(!Object.hasOwn(document, 'ikConstraints'), `${label} should not include IK constraints`);
   }
 
+  if (expectedTransformConstraints) {
+    validateTransformConstraints(document.transformConstraints, document, label);
+  } else {
+    assert.ok(!Object.hasOwn(document, 'transformConstraints'), `${label} should not include transform constraints`);
+  }
+
   if (expectedStateMachine) {
     validateStateMachines(document.stateMachines, document, label);
   } else {
@@ -1063,6 +1131,23 @@ function validateClippingSample(document) {
   );
 }
 
+function validateTransformConstraintSample(document) {
+  const constraint = document.transformConstraints?.find((candidate) => candidate.name === 'weapon_follow_hand');
+  assert.ok(constraint, 'transform constraint sample should include weapon_follow_hand');
+  assert.equal(constraint.bone, 'weapon', 'weapon_follow_hand should constrain the weapon bone');
+  assert.equal(constraint.targetBone, 'hand', 'weapon_follow_hand should target the hand bone');
+  assert.equal(constraint.translateMix, 1, 'weapon_follow_hand translate mix should fully follow');
+  assert.equal(constraint.rotateMix, 1, 'weapon_follow_hand rotate mix should fully follow');
+  assert.equal(constraint.scaleMix, 0, 'weapon_follow_hand should leave scale unchanged');
+
+  const swing = document.animations.find((animation) => animation.name === 'swing');
+  assert.ok(swing, 'transform constraint sample should include swing animation');
+  const handTimeline = swing.bones.find((timeline) => timeline.bone === 'hand');
+  assert.ok(handTimeline, 'swing should animate the hand bone');
+  assert.ok((handTimeline.translate ?? []).length >= 3, 'swing should move the hand with translate keys');
+  assert.ok((handTimeline.rotate ?? []).length >= 3, 'swing should rotate the hand');
+}
+
 async function validateImporterSample({ samplePath, debugJsonPath, texturesPath }) {
   const suwol2d = JSON.parse(await readFile(samplePath, 'utf8'));
   const debugJson = JSON.parse(await readFile(debugJsonPath, 'utf8'));
@@ -1103,6 +1188,38 @@ function validateIkConstraints(ikConstraints, document, label) {
     assert.ok(Number.isInteger(constraint.order), `${label} IK order should be integer`);
     assert.ok(!seenOrders.has(constraint.order), `${label} IK order should be unique`);
     seenOrders.add(constraint.order);
+  }
+}
+
+function validateTransformConstraints(transformConstraints, document, label) {
+  assert.ok(Array.isArray(transformConstraints), `${label} transformConstraints should be an array`);
+  assert.ok(transformConstraints.length > 0, `${label} should include at least one transform constraint`);
+  const boneNames = new Set(document.bones.map((bone) => bone.name));
+  const seenNames = new Set();
+  const seenOrders = new Set();
+  for (const constraint of transformConstraints) {
+    expectExactKeys(
+      constraint,
+      ['name', 'bone', 'targetBone', 'enabled', 'order', 'translateMix', 'rotateMix', 'scaleMix', 'offsetX', 'offsetY', 'offsetRotation', 'offsetScaleX', 'offsetScaleY'],
+      `${label} transform constraint`
+    );
+    assert.equal(typeof constraint.name, 'string', `${label} transform constraint name should be a string`);
+    assert.ok(!seenNames.has(constraint.name), `${label} transform constraint name should be unique`);
+    seenNames.add(constraint.name);
+    assert.ok(boneNames.has(constraint.bone), `${label} transform constrained bone should exist: ${constraint.bone}`);
+    assert.ok(boneNames.has(constraint.targetBone), `${label} transform target bone should exist: ${constraint.targetBone}`);
+    assert.notEqual(constraint.bone, constraint.targetBone, `${label} transform constraint should not target itself`);
+    assert.equal(typeof constraint.enabled, 'boolean', `${label} transform enabled should be boolean`);
+    assert.ok(Number.isInteger(constraint.order), `${label} transform order should be integer`);
+    assert.ok(!seenOrders.has(constraint.order), `${label} transform order should be unique`);
+    seenOrders.add(constraint.order);
+    for (const mixKey of ['translateMix', 'rotateMix', 'scaleMix']) {
+      assert.ok(Number.isFinite(constraint[mixKey]), `${label} ${mixKey} should be finite`);
+      assert.ok(constraint[mixKey] >= 0 && constraint[mixKey] <= 1, `${label} ${mixKey} should be in 0..1`);
+    }
+    for (const offsetKey of ['offsetX', 'offsetY', 'offsetRotation', 'offsetScaleX', 'offsetScaleY']) {
+      assert.ok(Number.isFinite(constraint[offsetKey]), `${label} ${offsetKey} should be finite`);
+    }
   }
 }
 

@@ -28,6 +28,7 @@ import type {
   Suwol2DStateTransition,
   Suwol2DSlotTimeline,
   Suwol2DSlot,
+  Suwol2DTransformConstraint,
   Suwol2DTransitionCondition,
   Suwol2DTranslateKey,
   Suwol2DVertexOffset,
@@ -47,6 +48,7 @@ export function createUnityRuntimeExport(document: Suwol2DDocument): Suwol2DDocu
   const ikConstraints = cleanIkConstraints(document.ikConstraints ?? []);
   const stateMachines = cleanStateMachines(document.stateMachines ?? [], document);
   const atlases = cleanAtlases(document.atlases ?? []);
+  const transformConstraints = cleanTransformConstraints(document.transformConstraints ?? []);
   const includeBoneLengths = ikConstraints.length > 0;
 
   return {
@@ -59,6 +61,7 @@ export function createUnityRuntimeExport(document: Suwol2DDocument): Suwol2DDocu
     animations: document.animations.map(cleanAnimation),
     ...(atlases.length > 0 ? { atlases } : {}),
     ...(ikConstraints.length > 0 ? { ikConstraints } : {}),
+    ...(transformConstraints.length > 0 ? { transformConstraints } : {}),
     ...(stateMachines.length > 0 ? { stateMachines } : {})
   };
 }
@@ -281,6 +284,27 @@ function cleanIkConstraints(constraints: Suwol2DIkConstraint[]): Suwol2DIkConstr
       };
     })
     .filter((constraint) => constraint.name && constraint.parentBone && constraint.childBone && constraint.targetBone)
+    .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+}
+
+function cleanTransformConstraints(constraints: Suwol2DTransformConstraint[]): Suwol2DTransformConstraint[] {
+  return constraints
+    .map((constraint): Suwol2DTransformConstraint => ({
+      name: constraint.name.trim(),
+      bone: constraint.bone.trim(),
+      targetBone: constraint.targetBone.trim(),
+      enabled: constraint.enabled !== false,
+      order: safeInteger(constraint.order, 0),
+      translateMix: clamp01(safeNumber(constraint.translateMix, 1)),
+      rotateMix: clamp01(safeNumber(constraint.rotateMix, 1)),
+      scaleMix: clamp01(safeNumber(constraint.scaleMix, 1)),
+      offsetX: safeNumber(constraint.offsetX, 0),
+      offsetY: safeNumber(constraint.offsetY, 0),
+      offsetRotation: safeNumber(constraint.offsetRotation, 0),
+      offsetScaleX: safeNumber(constraint.offsetScaleX, 0),
+      offsetScaleY: safeNumber(constraint.offsetScaleY, 0)
+    }))
+    .filter((constraint) => constraint.name && constraint.bone && constraint.targetBone)
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
 }
 

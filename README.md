@@ -34,6 +34,7 @@ under `unity/com.suwol.suwol2d/`.
 - Weighted mesh deformation
 - Deform timelines
 - 2-bone IK constraints
+- Transform constraints for one bone following one target bone
 - Skins and slot attachment swaps
 - Attachment, draw order, slot color, and event timelines
 - Unity `.suwol2d` importer and prefab workflow
@@ -48,7 +49,7 @@ under `unity/com.suwol.suwol2d/`.
 
 Out of scope for this release: Spine import/export/runtime compatibility,
 concave clipping, rotated/trimmed/multi-page atlases, custom bezier handles,
-graph curve editing, animation layers, blend trees, additive animation,
+graph curve editing, path constraints, constraint timelines, animation layers, blend trees, additive animation,
 telemetry, Windows/macOS auto-updaters, and
 licensing/payment systems.
 
@@ -286,6 +287,12 @@ convex polygon masks only. A clipping attachment masks subsequent draw-order
 slots through `endSlot`, or through the end of draw order when `endSlot` is not
 set.
 
+Transform constraint export uses top-level `transformConstraints`. v22 supports
+one constrained bone and one target bone per constraint, with translate, rotate,
+and scale mix values, offsets, `enabled`, and `order`. Transform constraints are
+applied after animation/mixing and before IK in both the Electron preview and
+Unity runtime.
+
 ## Linux ZIP Auto Update
 
 Linux ZIP builds can check public GitHub Releases for
@@ -314,11 +321,13 @@ runs include the ZIP, `checksums-linux-x64.txt`, and
 - `docs/linux-zip-auto-update-v19.md`
 - `docs/curve-interpolation-editor-v20.md`
 - `docs/clipping-mask-v21.md`
+- `docs/transform-constraint-v22.md`
 - `unity/com.suwol.suwol2d/Documentation~/index.md`
 - `unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md`
 - `unity/com.suwol.suwol2d/Documentation~/atlas-packing-texture-atlas-v17.md`
 - `unity/com.suwol.suwol2d/Documentation~/curve-interpolation-editor-v20.md`
 - `unity/com.suwol.suwol2d/Documentation~/clipping-mask-v21.md`
+- `unity/com.suwol.suwol2d/Documentation~/transform-constraint-v22.md`
 
 ## License
 

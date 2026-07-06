@@ -16,6 +16,7 @@ namespace Suwol.Suwol2D.Editor
         [SerializeField] private int clippingVertexCount;
         [SerializeField] private int animationsCount;
         [SerializeField] private int ikConstraintsCount;
+        [SerializeField] private int transformConstraintsCount;
         [SerializeField] private int attachmentTimelineCount;
         [SerializeField] private int drawOrderKeyCount;
         [SerializeField] private int slotColorKeyCount;
@@ -45,6 +46,7 @@ namespace Suwol.Suwol2D.Editor
         public int ClippingVertexCount { get { return clippingVertexCount; } }
         public int AnimationsCount { get { return animationsCount; } }
         public int IkConstraintsCount { get { return ikConstraintsCount; } }
+        public int TransformConstraintsCount { get { return transformConstraintsCount; } }
         public int AttachmentTimelineCount { get { return attachmentTimelineCount; } }
         public int DrawOrderKeyCount { get { return drawOrderKeyCount; } }
         public int SlotColorKeyCount { get { return slotColorKeyCount; } }
@@ -74,6 +76,7 @@ namespace Suwol.Suwol2D.Editor
             int attachmentsCount,
             int animationsCount,
             int ikConstraintsCount,
+            int transformConstraintsCount,
             string[] animationNames,
             string[] skinNames,
             string[] slotNames,
@@ -87,6 +90,7 @@ namespace Suwol.Suwol2D.Editor
             this.attachmentsCount = attachmentsCount;
             this.animationsCount = animationsCount;
             this.ikConstraintsCount = ikConstraintsCount;
+            this.transformConstraintsCount = transformConstraintsCount;
             this.animationNames = animationNames ?? new string[0];
             this.skinNames = skinNames ?? new string[0];
             this.slotNames = slotNames ?? new string[0];

@@ -78,6 +78,11 @@
       "displayName": "Clipping Mask v21",
       "description": "Sample .suwol2d importer asset, debug JSON, textures, and convex clipping attachment data.",
       "path": "Samples~/ClippingMaskV21"
+    },
+    {
+      "displayName": "Transform Constraint v22",
+      "description": "Sample .suwol2d importer asset, debug JSON, textures, and transform constraint data for weapon follow playback.",
+      "path": "Samples~/TransformConstraintV22"
     }
   ]
 }

@@ -53,6 +53,7 @@ import type {
   Suwol2DStateMachine,
   Suwol2DSlotTimeline,
   Suwol2DSlot,
+  Suwol2DTransformConstraint,
   Suwol2DTranslateKey,
   Suwol2DTransitionCondition,
   Suwol2DVertexOffset
@@ -162,6 +163,7 @@ import {
   createSampleDocument,
   createSkinSampleDocument,
   createTimelineUsabilitySampleDocument,
+  createTransformConstraintSampleDocument,
   createWeightedMeshSampleDocument
 } from './features/project/sample-project';
 import { useI18n } from './i18n/useI18n';
@@ -174,6 +176,7 @@ type Selection =
   | { type: 'attachment'; name: string }
   | { type: 'animation'; name: string }
   | { type: 'ikConstraint'; name: string }
+  | { type: 'transformConstraint'; name: string }
   | { type: 'stateMachine'; name: string }
   | { type: 'meshVertex'; attachment: string; vertex: number }
   | { type: 'clippingVertex'; attachment: string; vertex: number }
@@ -973,6 +976,33 @@ export function App() {
     }
   }
 
+  async function handleCreateTransformConstraintSampleCharacter() {
+    if (!projectFilePath) {
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.transformConstraint') });
+      return;
+    }
+
+    try {
+      const sampleImages = await window.suwol.project.createAnimationTimelinesSampleAssets(projectFilePath);
+      const mergedImages = mergeImages(project.importedImages, sampleImages);
+      commitProjectChange((draft) => {
+        draft.importedImages = mergedImages;
+        draft.document = createTransformConstraintSampleDocument(mergedImages);
+      });
+      setActiveSkinName(defaultSkinName);
+      setCurrentAnimationName('swing');
+      setCurrentTime(0);
+      setTimelineMode('bone');
+      setTimelineFilter('all');
+      setTimelineKeySelection(null);
+      setSelectedCanvasVertices(null);
+      setSelection({ type: 'transformConstraint', name: 'weapon_follow_hand' });
+      setLocalizedStatus('status.transformConstraintSampleCreated');
+    } catch (error) {
+      setStatus(getErrorMessage(error));
+    }
+  }
+
   async function handleExportJson() {
     if (!projectFilePath) {
       setLocalizedStatus('status.createOrOpenBeforeExport');
@@ -1131,6 +1161,8 @@ export function App() {
       deleteAnimation(selection.name);
     } else if (selection.type === 'ikConstraint') {
       deleteIkConstraint(selection.name);
+    } else if (selection.type === 'transformConstraint') {
+      deleteTransformConstraint(selection.name);
     } else if (selection.type === 'stateMachine') {
       deleteStateMachine(selection.name);
     } else {
@@ -1241,6 +1273,13 @@ export function App() {
       constraint.parentBone === name || constraint.childBone === name || constraint.targetBone === name
     ))) {
       setStatus(`Cannot delete bone '${name}' because an IK constraint references it.`);
+      return;
+    }
+
+    if ((document.transformConstraints ?? []).some((constraint) => (
+      constraint.bone === name || constraint.targetBone === name
+    ))) {
+      setStatus(`Cannot delete bone '${name}' because a transform constraint references it.`);
       return;
     }
 
@@ -1429,6 +1468,50 @@ export function App() {
     });
   }
 
+  function addTransformConstraint() {
+    if (document.bones.length < 2) {
+      setStatus('Create at least two bones before adding a transform constraint.');
+      return;
+    }
+
+    updateDocument((draft) => {
+      draft.transformConstraints ??= [];
+      const name = uniqueName('transform', draft.transformConstraints.map((constraint) => constraint.name));
+      const selectedBone = selection?.type === 'bone'
+        ? draft.bones.find((bone) => bone.name === selection.name)
+        : undefined;
+      const constrained = selectedBone && draft.bones.length > 1 ? selectedBone : draft.bones[1] ?? draft.bones[0];
+      const target = draft.bones.find((bone) => bone.name !== constrained?.name) ?? draft.bones[0];
+      draft.transformConstraints.push({
+        name,
+        bone: constrained?.name ?? '',
+        targetBone: target?.name ?? '',
+        enabled: true,
+        order: draft.transformConstraints.length,
+        translateMix: 1,
+        rotateMix: 1,
+        scaleMix: 0,
+        offsetX: 0,
+        offsetY: 0,
+        offsetRotation: 0,
+        offsetScaleX: 0,
+        offsetScaleY: 0
+      });
+      setSelection({ type: 'transformConstraint', name });
+    });
+  }
+
+  function deleteTransformConstraint(name: string) {
+    updateDocument((draft) => {
+      draft.transformConstraints = (draft.transformConstraints ?? []).filter((constraint) => constraint.name !== name);
+      if (draft.transformConstraints.length === 0) {
+        draft.transformConstraints = undefined;
+      }
+      const next = draft.transformConstraints?.[0];
+      setSelection(next ? { type: 'transformConstraint', name: next.name } : null);
+    });
+  }
+
   function addStateMachine() {
     updateDocument((draft) => {
       const name = uniqueName('state_machine', (draft.stateMachines ?? []).map((machine) => machine.name));
@@ -1542,7 +1625,8 @@ export function App() {
     { label: t('sample.stateMachine'), onSelect: handleCreateAnimationMixingStateMachineSampleCharacter },
     { label: t('sample.timelineEditing'), onSelect: handleCreateTimelineUsabilitySampleCharacter },
     { label: t('sample.interpolation'), onSelect: handleCreateInterpolationSampleCharacter },
-    { label: t('sample.clipping'), onSelect: handleCreateClippingSampleCharacter }
+    { label: t('sample.clipping'), onSelect: handleCreateClippingSampleCharacter },
+    { label: t('sample.transformConstraint'), onSelect: handleCreateTransformConstraintSampleCharacter }
   ];
 
   menuCommandRef.current = (command) => {
@@ -1716,6 +1800,17 @@ export function App() {
                 label={`${constraint.name} [${constraint.parentBone} -> ${constraint.childBone}]`}
                 onClick={() => setSelection({ type: 'ikConstraint', name: constraint.name })}
                 onDelete={() => deleteIkConstraint(constraint.name)}
+              />
+            ))}
+          </ListSection>
+          <ListSection title={t('panel.transformConstraints')} icon={<Bone size={15} />} onAdd={addTransformConstraint}>
+            {[...(document.transformConstraints ?? [])].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)).map((constraint) => (
+              <ListButton
+                key={constraint.name}
+                active={selection?.type === 'transformConstraint' && selection.name === constraint.name}
+                label={`${constraint.name} [${constraint.bone} -> ${constraint.targetBone}]`}
+                onClick={() => setSelection({ type: 'transformConstraint', name: constraint.name })}
+                onDelete={() => deleteTransformConstraint(constraint.name)}
               />
             ))}
           </ListSection>
@@ -2748,6 +2843,37 @@ function Inspector({
     );
   }
 
+  if (selection.type === 'transformConstraint') {
+    const constraint = (document.transformConstraints ?? []).find((candidate) => candidate.name === selection.name);
+    if (!constraint) return null;
+    const boneOptions = document.bones.map((bone) => bone.name);
+    return (
+      <section className="inspector-section">
+        <h2>{t('constraint.transform.title')}</h2>
+        <TextField
+          label={t('inspector.name')}
+          value={constraint.name}
+          onChange={(value) => renameTransformConstraint(document, updateDocument, constraint.name, value, setSelection, setStatus)}
+        />
+        <label className="field-row checkbox-row">
+          <span>{t('constraint.transform.enabled')}</span>
+          <input type="checkbox" checked={constraint.enabled} onChange={(event) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).enabled = event.target.checked; })} />
+        </label>
+        <SelectField label={t('constraint.transform.bone')} value={constraint.bone} options={boneOptions} onChange={(value) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).bone = value; })} />
+        <SelectField label={t('constraint.transform.targetBone')} value={constraint.targetBone} options={boneOptions} onChange={(value) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).targetBone = value; })} />
+        <NumberField label={t('constraint.transform.order')} value={constraint.order} onChange={(value) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).order = Math.trunc(value); })} />
+        <NumberField label={t('constraint.transform.translateMix')} value={constraint.translateMix} onChange={(value) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).translateMix = clamp01(value); })} />
+        <NumberField label={t('constraint.transform.rotateMix')} value={constraint.rotateMix} onChange={(value) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).rotateMix = clamp01(value); })} />
+        <NumberField label={t('constraint.transform.scaleMix')} value={constraint.scaleMix} onChange={(value) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).scaleMix = clamp01(value); })} />
+        <NumberField label={t('constraint.transform.offsetX')} value={constraint.offsetX} onChange={(value) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).offsetX = value; })} />
+        <NumberField label={t('constraint.transform.offsetY')} value={constraint.offsetY} onChange={(value) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).offsetY = value; })} />
+        <NumberField label={t('constraint.transform.offsetRotation')} value={constraint.offsetRotation} onChange={(value) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).offsetRotation = value; })} />
+        <NumberField label={t('constraint.transform.offsetScaleX')} value={constraint.offsetScaleX} onChange={(value) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).offsetScaleX = value; })} />
+        <NumberField label={t('constraint.transform.offsetScaleY')} value={constraint.offsetScaleY} onChange={(value) => updateDocument((draft) => { findTransformConstraint(draft, constraint.name).offsetScaleY = value; })} />
+      </section>
+    );
+  }
+
   if (selection.type === 'stateMachine') {
     const machine = (document.stateMachines ?? []).find((candidate) => candidate.name === selection.name);
     if (!machine) return null;
@@ -3437,6 +3563,29 @@ function CanvasPreview({
       }
     }
 
+    const transformTargets = new Set((document.transformConstraints ?? []).map((constraint) => constraint.targetBone));
+    for (const constraint of [...(document.transformConstraints ?? [])].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))) {
+      const bone = pose.get(constraint.bone);
+      const target = pose.get(constraint.targetBone);
+      if (!bone || !target) {
+        continue;
+      }
+
+      context.save();
+      context.strokeStyle = constraint.enabled ? '#38bdf8' : '#68727d';
+      context.lineWidth = selection?.type === 'transformConstraint' && selection.name === constraint.name ? 3 : 1.5;
+      context.setLineDash([5, 5]);
+      context.beginPath();
+      context.moveTo(centerX + target.worldX * unitScale, centerY - target.worldY * unitScale);
+      context.lineTo(centerX + bone.worldX * unitScale, centerY - bone.worldY * unitScale);
+      context.stroke();
+      context.setLineDash([]);
+      context.beginPath();
+      context.arc(centerX + target.worldX * unitScale, centerY - target.worldY * unitScale, 8, 0, Math.PI * 2);
+      context.stroke();
+      context.restore();
+    }
+
     const ikTargets = new Set((document.ikConstraints ?? []).map((constraint) => constraint.targetBone));
     for (const constraint of [...(document.ikConstraints ?? [])].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))) {
       const parent = pose.get(constraint.parentBone);
@@ -3478,8 +3627,8 @@ function CanvasPreview({
         }
       }
       context.beginPath();
-      context.arc(x, y, selection?.type === 'bone' && selection.name === bone.name ? 7 : ikTargets.has(bone.name) ? 6 : 5, 0, Math.PI * 2);
-      context.fillStyle = selection?.type === 'bone' && selection.name === bone.name ? '#f2b84b' : ikTargets.has(bone.name) ? '#e879f9' : '#1fb8a6';
+      context.arc(x, y, selection?.type === 'bone' && selection.name === bone.name ? 7 : ikTargets.has(bone.name) || transformTargets.has(bone.name) ? 6 : 5, 0, Math.PI * 2);
+      context.fillStyle = selection?.type === 'bone' && selection.name === bone.name ? '#f2b84b' : ikTargets.has(bone.name) ? '#e879f9' : transformTargets.has(bone.name) ? '#38bdf8' : '#1fb8a6';
       context.fill();
     }
 
@@ -5129,6 +5278,10 @@ function renameBone(
       if (constraint.childBone === oldName) constraint.childBone = safeName;
       if (constraint.targetBone === oldName) constraint.targetBone = safeName;
     }
+    for (const constraint of draft.transformConstraints ?? []) {
+      if (constraint.bone === oldName) constraint.bone = safeName;
+      if (constraint.targetBone === oldName) constraint.targetBone = safeName;
+    }
   });
   setSelection({ type: 'bone', name: safeName });
 }
@@ -5270,6 +5423,22 @@ function renameIkConstraint(
     findIkConstraint(draft, oldName).name = safeName;
   });
   setSelection({ type: 'ikConstraint', name: safeName });
+}
+
+function renameTransformConstraint(
+  document: Suwol2DDocument,
+  updateDocument: (updater: (document: Suwol2DDocument) => void) => void,
+  oldName: string,
+  newName: string,
+  setSelection: (selection: Selection) => void,
+  setStatus: (status: string) => void
+) {
+  const safeName = validateRenameName(newName, oldName, (document.transformConstraints ?? []).filter((constraint) => constraint.name !== oldName).map((constraint) => constraint.name), 'transform constraint', setStatus);
+  if (!safeName) return;
+  updateDocument((draft) => {
+    findTransformConstraint(draft, oldName).name = safeName;
+  });
+  setSelection({ type: 'transformConstraint', name: safeName });
 }
 
 function renameStateMachine(
@@ -5574,6 +5743,12 @@ function findAnimation(document: Suwol2DDocument, name: string): Suwol2DAnimatio
 function findIkConstraint(document: Suwol2DDocument, name: string): Suwol2DIkConstraint {
   const constraint = (document.ikConstraints ?? []).find((candidate) => candidate.name === name);
   if (!constraint) throw new Error(`IK constraint not found: ${name}`);
+  return constraint;
+}
+
+function findTransformConstraint(document: Suwol2DDocument, name: string): Suwol2DTransformConstraint {
+  const constraint = (document.transformConstraints ?? []).find((candidate) => candidate.name === name);
+  if (!constraint) throw new Error(`Transform constraint not found: ${name}`);
   return constraint;
 }
 
@@ -6405,6 +6580,10 @@ function normalizeSelection(selection: Selection | null, document: Suwol2DDocume
     return (document.ikConstraints ?? []).some((constraint) => constraint.name === selection.name) ? selection : null;
   }
 
+  if (selection.type === 'transformConstraint') {
+    return (document.transformConstraints ?? []).some((constraint) => constraint.name === selection.name) ? selection : null;
+  }
+
   if (selection.type === 'stateMachine') {
     return (document.stateMachines ?? []).some((machine) => machine.name === selection.name) ? selection : null;
   }
@@ -6440,6 +6619,11 @@ function inferValidationSelection(issue: ValidationIssue, document: Suwol2DDocum
   if (message.includes('ik constraint')) {
     const constraint = findNamedEntity((document.ikConstraints ?? []).map((item) => item.name), issue.message);
     if (constraint) return { type: 'ikConstraint', name: constraint };
+  }
+
+  if (message.includes('transform constraint')) {
+    const constraint = findNamedEntity((document.transformConstraints ?? []).map((item) => item.name), issue.message);
+    if (constraint) return { type: 'transformConstraint', name: constraint };
   }
 
   if (message.includes('skin')) {
@@ -6658,6 +6842,14 @@ function clampInteger(value: number, fallback: number, min: number, max: number)
   }
 
   return Math.max(min, Math.min(max, Math.trunc(value)));
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(1, value));
 }
 
 function toNumber(value: string, fallback: number): number {

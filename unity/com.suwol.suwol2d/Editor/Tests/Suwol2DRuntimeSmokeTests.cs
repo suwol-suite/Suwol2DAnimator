@@ -25,7 +25,8 @@ namespace Suwol.Suwol2D.Editor.Tests
             "AnimationMixingStateMachineV10",
             "TimelineUsabilityV11",
             "CurveInterpolationV20",
-            "ClippingMaskV21"
+            "ClippingMaskV21",
+            "TransformConstraintV22"
         };
 
         public static void RunAll()
@@ -49,7 +50,7 @@ namespace Suwol.Suwol2D.Editor.Tests
                 ValidateAtlasLookupApi();
                 ValidateEventDispatcher(jsonFiles);
 
-                Debug.Log("Suwol2D Runtime Stability v9 + Animation Mixing State Machine v10 + Timeline Usability v11 + Curve Interpolation v20 + Clipping Mask v21 smoke tests passed.");
+                Debug.Log("Suwol2D Runtime Stability v9 + Animation Mixing State Machine v10 + Timeline Usability v11 + Curve Interpolation v20 + Clipping Mask v21 + Transform Constraint v22 smoke tests passed.");
             }
             catch (Exception exception)
             {
@@ -178,6 +179,7 @@ namespace Suwol.Suwol2D.Editor.Tests
                     ValidateTimelineUsabilityDuration(data, jsonFiles[i]);
                     ValidateCurveInterpolationApi(character, data, jsonFiles[i]);
                     ValidateClippingMaskApi(character, data, jsonFiles[i]);
+                    ValidateTransformConstraintApi(character, data, jsonFiles[i]);
                     var countBefore = GetRendererViewCount(character);
                     for (var repeat = 0; repeat < 5; repeat++)
                     {
@@ -422,6 +424,35 @@ namespace Suwol.Suwol2D.Editor.Tests
             character.Play("walk");
             StepCharacter(character, 0.1f);
             Assert(character.GetCurrentAnimationName() == "walk", "v21 sample walk animation should play: " + label);
+            AssertNoNaNTransforms(character.gameObject);
+        }
+
+        private static void ValidateTransformConstraintApi(Suwol2DCharacter character, Suwol2DAssetData data, string label)
+        {
+            if (!label.Replace('\\', '/').Contains("/TransformConstraintV22/"))
+            {
+                return;
+            }
+
+            Assert(data.transformConstraints != null && data.transformConstraints.Length == 1, "v22 sample should include one transform constraint: " + label);
+            var constraint = data.transformConstraints[0];
+            Assert(constraint.name == "weapon_follow_hand", "v22 transform constraint should be weapon_follow_hand: " + label);
+            Assert(constraint.bone == "weapon", "v22 transform constraint should constrain weapon: " + label);
+            Assert(constraint.targetBone == "hand", "v22 transform constraint should target hand: " + label);
+            Assert(Mathf.Abs(constraint.translateMix - 1f) < 0.001f, "v22 translate mix should be 1: " + label);
+            Assert(Mathf.Abs(constraint.rotateMix - 1f) < 0.001f, "v22 rotate mix should be 1: " + label);
+            Assert(Mathf.Abs(constraint.scaleMix) < 0.001f, "v22 scale mix should be 0: " + label);
+
+            Assert(character.HasAnimation("swing"), "v22 sample should include swing animation: " + label);
+            character.Play("swing");
+            StepCharacter(character, 0.5f);
+            var hand = character.Skeleton != null ? character.Skeleton.FindBone("hand") : null;
+            var weapon = character.Skeleton != null ? character.Skeleton.FindBone("weapon") : null;
+            Assert(hand != null, "v22 sample should include hand bone: " + label);
+            Assert(weapon != null, "v22 sample should include weapon bone: " + label);
+            var distance = Vector2.Distance(hand.WorldTransform.Position, weapon.WorldTransform.Position);
+            Assert(distance < 0.001f, "weapon should follow hand world position: " + label + " distance=" + distance);
+            Assert(Mathf.Abs(Mathf.DeltaAngle(hand.WorldTransform.rotation, weapon.WorldTransform.rotation)) < 0.001f, "weapon should follow hand world rotation: " + label);
             AssertNoNaNTransforms(character.gameObject);
         }
 

@@ -12,6 +12,7 @@ export interface Suwol2DDocument {
   animations: Suwol2DAnimation[];
   atlases?: Suwol2DAtlas[];
   ikConstraints?: Suwol2DIkConstraint[];
+  transformConstraints?: Suwol2DTransformConstraint[];
   stateMachines?: Suwol2DStateMachine[];
 }
 
@@ -62,6 +63,22 @@ export interface Suwol2DIkConstraint {
   mix: number;
   bendDirection: 1 | -1;
   order: number;
+}
+
+export interface Suwol2DTransformConstraint {
+  name: string;
+  bone: string;
+  targetBone: string;
+  enabled: boolean;
+  order: number;
+  translateMix: number;
+  rotateMix: number;
+  scaleMix: number;
+  offsetX: number;
+  offsetY: number;
+  offsetRotation: number;
+  offsetScaleX: number;
+  offsetScaleY: number;
 }
 
 export interface Suwol2DSlot {

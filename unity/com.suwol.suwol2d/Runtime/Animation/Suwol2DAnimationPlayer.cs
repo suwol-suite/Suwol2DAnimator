@@ -266,6 +266,8 @@ namespace Suwol.Suwol2D
                 Suwol2DAnimationMixer.Apply(skeleton, currentAnimation, sampleTime, null, 0f, 0f);
             }
             skeleton.UpdateWorldTransforms();
+            Suwol2DTransformConstraintSolver.Solve(skeleton);
+            skeleton.UpdateWorldTransforms();
             Suwol2DIkSolver.Solve(skeleton);
             skeleton.UpdateWorldTransforms();
 

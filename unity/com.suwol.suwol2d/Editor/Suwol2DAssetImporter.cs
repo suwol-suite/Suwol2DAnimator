@@ -93,6 +93,7 @@ namespace Suwol.Suwol2D.Editor
                 CountAttachments(data),
                 data != null && data.animations != null ? data.animations.Length : 0,
                 data != null && data.ikConstraints != null ? data.ikConstraints.Length : 0,
+                data != null && data.transformConstraints != null ? data.transformConstraints.Length : 0,
                 CollectAnimationNames(data),
                 CollectSkinNames(data),
                 CollectSlotNames(data),
@@ -279,6 +280,7 @@ namespace Suwol.Suwol2D.Editor
             ValidateBoneAnimationTimelines(data, boneNames, errors);
             ValidateDeforms(data, attachmentsByName, slotNames, errors);
             ValidateV8Timelines(data, attachmentsByName, slotNames, warnings, errors);
+            ValidateTransformConstraints(data, boneNames, warnings, errors);
             ValidateIk(data, boneNames, errors);
             ValidateStateMachines(data, CollectAnimationNameSet(data), warnings, errors);
             ValidateAtlases(data, warnings, errors);
@@ -898,6 +900,75 @@ namespace Suwol.Suwol2D.Editor
                 if (!IsFinite(constraint.mix))
                 {
                     errors.Add("IK constraint '" + name + "' has a non-finite mix value.");
+                }
+            }
+        }
+
+        private static void ValidateTransformConstraints(
+            Suwol2DAssetData data,
+            HashSet<string> boneNames,
+            List<string> warnings,
+            List<string> errors)
+        {
+            if (data.transformConstraints == null)
+            {
+                return;
+            }
+
+            var names = new HashSet<string>();
+            var orders = new HashSet<int>();
+            for (var i = 0; i < data.transformConstraints.Length; i++)
+            {
+                var constraint = data.transformConstraints[i];
+                if (constraint == null)
+                {
+                    continue;
+                }
+
+                var name = string.IsNullOrEmpty(constraint.name) ? "(unnamed)" : constraint.name;
+                if (string.IsNullOrEmpty(constraint.name))
+                {
+                    errors.Add("Transform constraint has an empty name.");
+                }
+                else if (!names.Add(constraint.name))
+                {
+                    errors.Add("Duplicate transform constraint name: " + constraint.name);
+                }
+
+                if (!boneNames.Contains(constraint.bone))
+                {
+                    errors.Add("Transform constraint '" + name + "' references missing bone '" + constraint.bone + "'.");
+                }
+
+                if (!boneNames.Contains(constraint.targetBone))
+                {
+                    errors.Add("Transform constraint '" + name + "' references missing target bone '" + constraint.targetBone + "'.");
+                }
+
+                if (!string.IsNullOrEmpty(constraint.bone) && constraint.bone == constraint.targetBone)
+                {
+                    errors.Add("Transform constraint '" + name + "' uses the same bone and targetBone.");
+                }
+
+                if (!IsFinite(constraint.translateMix) || !IsFinite(constraint.rotateMix) || !IsFinite(constraint.scaleMix))
+                {
+                    errors.Add("Transform constraint '" + name + "' has a non-finite mix value.");
+                }
+                else if (!IsUnitRange(constraint.translateMix) || !IsUnitRange(constraint.rotateMix) || !IsUnitRange(constraint.scaleMix))
+                {
+                    warnings.Add("Transform constraint '" + name + "' mix is outside 0..1 and will be clamped on export.");
+                }
+
+                if (!IsFinite(constraint.offsetX) || !IsFinite(constraint.offsetY) ||
+                    !IsFinite(constraint.offsetRotation) || !IsFinite(constraint.offsetScaleX) ||
+                    !IsFinite(constraint.offsetScaleY))
+                {
+                    errors.Add("Transform constraint '" + name + "' contains a non-finite offset.");
+                }
+
+                if (!orders.Add(constraint.order))
+                {
+                    warnings.Add("Transform constraint '" + name + "' shares order " + constraint.order + " with another transform constraint.");
                 }
             }
         }

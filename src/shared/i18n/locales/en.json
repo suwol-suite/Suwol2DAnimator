@@ -64,7 +64,8 @@
     "stateMachines": "State Machines",
     "timeline": "Timeline",
     "validation": "Validation",
-    "inspector": "Inspector"
+    "inspector": "Inspector",
+    "transformConstraints": "Transform Constraints"
   },
   "sample": {
     "region": "Sample",
@@ -77,7 +78,8 @@
     "stateMachine": "Mixing State Sample",
     "timelineEditing": "Timeline Editing Sample",
     "interpolation": "Interpolation Sample",
-    "clipping": "Clipping Sample"
+    "clipping": "Clipping Sample",
+    "transformConstraint": "Transform Constraint Sample"
   },
   "menu": {
     "file": "File",
@@ -206,7 +208,8 @@
     "selectKeyBeforeDelete": "Select a timeline key before deleting.",
     "deletedKey": "Deleted timeline key.",
     "selectBoneAndAnimationBeforeKeys": "Select a bone and animation before adding keys.",
-    "selectAnimationAndMeshBeforeDeformKeys": "Select an animation and mesh attachment before adding deform keys."
+    "selectAnimationAndMeshBeforeDeformKeys": "Select an animation and mesh attachment before adding deform keys.",
+    "transformConstraintSampleCreated": "Transform Constraint sample created. Scrub swing and adjust mix values to preview weapon follow."
   },
   "export": {
     "successTitle": "Export Complete",
@@ -255,7 +258,13 @@
     "clippingMissingEndSlot": "Clipping attachment '{{name}}' references missing end slot '{{slot}}'.",
     "clippingZeroArea": "Clipping attachment '{{name}}' polygon has zero area.",
     "clippingConcaveUnsupported": "Clipping attachment '{{name}}' is concave. v21 supports convex clipping polygons only.",
-    "clippingEndSlotBeforeStart": "Clipping attachment '{{name}}' ends before its starting slot."
+    "clippingEndSlotBeforeStart": "Clipping attachment '{{name}}' ends before its starting slot.",
+    "transformConstraintDuplicateName": "Duplicate transform constraint name: {{name}}",
+    "transformConstraintMissingBone": "Transform constraint '{{constraint}}' references missing bone '{{bone}}'.",
+    "transformConstraintMissingTarget": "Transform constraint '{{constraint}}' references missing target bone '{{bone}}'.",
+    "transformConstraintSameBone": "Transform constraint '{{constraint}}' uses the same bone and targetBone.",
+    "transformConstraintInvalidMix": "Transform constraint '{{constraint}}' has invalid mix.",
+    "transformConstraintDuplicateOrder": "Transform constraint '{{constraint}}' shares order {{order}} with another transform constraint."
   },
   "timeline": {
     "currentTime": "Current",
@@ -340,7 +349,7 @@
     "supported": "Supported",
     "license": "License",
     "docs": "Docs",
-    "supportedFeatures": "region, mesh, weighted mesh, deform, interpolation, IK, skins, timelines, state machine, clipping"
+    "supportedFeatures": "region, mesh, weighted mesh, deform, interpolation, IK, transform constraints, skins, timelines, state machine, clipping"
   },
   "inspector": {
     "document": "Document",
@@ -447,5 +456,23 @@
     "unsavedMessage": "{{projectName}} has unsaved changes.",
     "unsavedDetail": "Save before continuing, discard the changes, or cancel the action.",
     "thisProject": "This project"
+  },
+  "constraint": {
+    "transform": {
+      "title": "Transform Constraint",
+      "add": "Add Transform Constraint",
+      "bone": "Constrained Bone",
+      "targetBone": "Target Bone",
+      "enabled": "Enabled",
+      "order": "Order",
+      "translateMix": "Translate Mix",
+      "rotateMix": "Rotate Mix",
+      "scaleMix": "Scale Mix",
+      "offsetX": "Offset X",
+      "offsetY": "Offset Y",
+      "offsetRotation": "Offset Rotation",
+      "offsetScaleX": "Offset Scale X",
+      "offsetScaleY": "Offset Scale Y"
+    }
   }
 }

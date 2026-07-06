@@ -9,6 +9,7 @@ import type {
   Suwol2DScaleKey,
   Suwol2DSlot,
   Suwol2DSlotColorKey,
+  Suwol2DTransformConstraint,
   Suwol2DTranslateKey
 } from '../../../../shared/suwol2d-format';
 import { interpolateFactor, lerpAngleShortest, lerpNumber } from '../../../../shared/interpolation';
@@ -34,6 +35,10 @@ export function getAnimationDuration(animation: Suwol2DAnimation | undefined): n
 }
 
 export function sampleDocumentPose(document: Suwol2DDocument, animationName: string, time: number): Map<string, WorldBonePose> {
+  return resolveDocumentWorldPose(document, sampleDocumentLocalPose(document, animationName, time));
+}
+
+export function sampleDocumentLocalPose(document: Suwol2DDocument, animationName: string, time: number): Map<string, Suwol2DBone> {
   const localBones = new Map<string, Suwol2DBone>();
   const animation = document.animations.find((candidate) => candidate.name === animationName);
   const duration = getAnimationDuration(animation);
@@ -68,7 +73,22 @@ export function sampleDocumentPose(document: Suwol2DDocument, animationName: str
     }
   }
 
+  return localBones;
+}
+
+export function resolveDocumentWorldPose(document: Suwol2DDocument, localBones: Map<string, Suwol2DBone>): Map<string, WorldBonePose> {
   let worldBones = calculateWorldBones(document, localBones);
+  const transformConstraints = [...(document.transformConstraints ?? [])].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  for (const constraint of transformConstraints) {
+    if (constraint.enabled === false || Math.max(constraint.translateMix, constraint.rotateMix, constraint.scaleMix) <= 0) {
+      continue;
+    }
+
+    if (applyTransformConstraint(localBones, worldBones, constraint)) {
+      worldBones = calculateWorldBones(document, localBones);
+    }
+  }
+
   const constraints = [...(document.ikConstraints ?? [])].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
   for (const constraint of constraints) {
     if (constraint.enabled === false || constraint.mix <= 0) {
@@ -318,6 +338,54 @@ function calculateWorldBones(document: Suwol2DDocument, localBones: Map<string, 
   return worldBones;
 }
 
+function applyTransformConstraint(
+  localBones: Map<string, Suwol2DBone>,
+  worldBones: Map<string, WorldBonePose>,
+  constraint: Suwol2DTransformConstraint
+): boolean {
+  const local = localBones.get(constraint.bone);
+  const world = worldBones.get(constraint.bone);
+  const target = worldBones.get(constraint.targetBone);
+  if (!local || !world || !target || constraint.bone === constraint.targetBone) {
+    return false;
+  }
+
+  const translateMix = clamp(safeNumber(constraint.translateMix, 1), 0, 1);
+  const rotateMix = clamp(safeNumber(constraint.rotateMix, 1), 0, 1);
+  const scaleMix = clamp(safeNumber(constraint.scaleMix, 1), 0, 1);
+  if (translateMix <= 0 && rotateMix <= 0 && scaleMix <= 0) {
+    return false;
+  }
+
+  const desiredWorldX = lerpNumber(world.worldX, target.worldX + safeNumber(constraint.offsetX, 0), translateMix);
+  const desiredWorldY = lerpNumber(world.worldY, target.worldY + safeNumber(constraint.offsetY, 0), translateMix);
+  const desiredWorldRotation = lerpAngle(world.worldRotation, target.worldRotation + safeNumber(constraint.offsetRotation, 0), rotateMix);
+  const desiredWorldScaleX = lerpNumber(world.worldScaleX, target.worldScaleX + safeNumber(constraint.offsetScaleX, 0), scaleMix);
+  const desiredWorldScaleY = lerpNumber(world.worldScaleY, target.worldScaleY + safeNumber(constraint.offsetScaleY, 0), scaleMix);
+
+  const parent = local.parent ? worldBones.get(local.parent) : null;
+  if (!parent) {
+    local.x = desiredWorldX;
+    local.y = desiredWorldY;
+    local.rotation = normalizeDegrees(desiredWorldRotation);
+    local.scaleX = sanitizeScale(desiredWorldScaleX);
+    local.scaleY = sanitizeScale(desiredWorldScaleY);
+    return true;
+  }
+
+  const delta = {
+    x: desiredWorldX - parent.worldX,
+    y: desiredWorldY - parent.worldY
+  };
+  const unrotated = rotatePoint(delta.x, delta.y, -parent.worldRotation);
+  local.x = safeDivide(unrotated.x, parent.worldScaleX, local.x);
+  local.y = safeDivide(unrotated.y, parent.worldScaleY, local.y);
+  local.rotation = normalizeDegrees(desiredWorldRotation - parent.worldRotation);
+  local.scaleX = sanitizeScale(safeDivide(desiredWorldScaleX, parent.worldScaleX, local.scaleX));
+  local.scaleY = sanitizeScale(safeDivide(desiredWorldScaleY, parent.worldScaleY, local.scaleY));
+  return true;
+}
+
 function applyTwoBoneIk(
   document: Suwol2DDocument,
   localBones: Map<string, Suwol2DBone>,
@@ -527,6 +595,18 @@ function radiansToDegrees(value: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function safeNumber(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function safeDivide(value: number, divisor: number, fallback: number): number {
+  return Number.isFinite(divisor) && Math.abs(divisor) > 0.000001 ? value / divisor : fallback;
+}
+
+function sanitizeScale(value: number): number {
+  return Number.isFinite(value) && Math.abs(value) > 0.000001 ? value : 0.000001;
 }
 
 function inverseLerp(a: number, b: number, value: number): number {

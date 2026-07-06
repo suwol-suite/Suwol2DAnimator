@@ -23,6 +23,7 @@ The current package contains:
 - weighted mesh attachment deformation
 - deform timeline playback for mesh attachments
 - 2-bone IK constraint playback
+- transform constraint playback for one constrained bone following one target bone
 - multiple skins and slot-based attachment swap
 - `.suwol2d` ScriptedImporter and generated prefab workflow
 - attachment timelines, draw order timelines, slot color/alpha timelines, and event callbacks
@@ -34,7 +35,7 @@ The current package contains:
 - explicit animation duration for editor/runtime playback
 - keyframe interpolation presets for transform, slot color, and deform timelines
 - convex polygon clipping attachments and masks
-- Runtime MVP v0, Mesh Attachment v1, Weighted Mesh v2, Deform Timeline v3, IK Constraint v5, Skin Attachment Swap v6, Importer Prefab Workflow v7, Animation Timelines v8, Animation Mixing State Machine v10, Timeline Usability v11, Curve Interpolation v20, and Clipping Mask v21 samples
+- Runtime MVP v0, Mesh Attachment v1, Weighted Mesh v2, Deform Timeline v3, IK Constraint v5, Skin Attachment Swap v6, Importer Prefab Workflow v7, Animation Timelines v8, Animation Mixing State Machine v10, Timeline Usability v11, Curve Interpolation v20, Clipping Mask v21, and Transform Constraint v22 samples
 
 See these docs for setup and demo instructions:
 
@@ -53,5 +54,6 @@ See these docs for setup and demo instructions:
 - `Documentation~/packaging-release-readiness-v12.md`
 - `Documentation~/curve-interpolation-editor-v20.md`
 - `Documentation~/clipping-mask-v21.md`
+- `Documentation~/transform-constraint-v22.md`
 
-Spine compatibility, concave clipping, animation layers, blend trees, additive animation, graph node editing, custom bezier handles, and full curve editors are intentionally outside the current scope.
+Spine compatibility, concave clipping, path constraints, constraint timelines, animation layers, blend trees, additive animation, graph node editing, custom bezier handles, and full curve editors are intentionally outside the current scope.

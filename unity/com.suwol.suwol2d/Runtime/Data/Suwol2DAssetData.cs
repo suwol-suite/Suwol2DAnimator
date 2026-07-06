@@ -14,6 +14,7 @@ namespace Suwol.Suwol2D
         public Suwol2DAnimationData[] animations = new Suwol2DAnimationData[0];
         public Suwol2DAtlasData[] atlases = new Suwol2DAtlasData[0];
         public Suwol2DIkConstraintData[] ikConstraints = new Suwol2DIkConstraintData[0];
+        public Suwol2DTransformConstraintData[] transformConstraints = new Suwol2DTransformConstraintData[0];
         public Suwol2DStateMachineData[] stateMachines = new Suwol2DStateMachineData[0];
     }
 
@@ -65,6 +66,24 @@ namespace Suwol.Suwol2D
         public float mix = 1f;
         public int bendDirection = 1;
         public int order;
+    }
+
+    [Serializable]
+    public sealed class Suwol2DTransformConstraintData
+    {
+        public string name = string.Empty;
+        public string bone = string.Empty;
+        public string targetBone = string.Empty;
+        public bool enabled = true;
+        public int order;
+        public float translateMix = 1f;
+        public float rotateMix = 1f;
+        public float scaleMix = 1f;
+        public float offsetX;
+        public float offsetY;
+        public float offsetRotation;
+        public float offsetScaleX;
+        public float offsetScaleY;
     }
 
     [Serializable]

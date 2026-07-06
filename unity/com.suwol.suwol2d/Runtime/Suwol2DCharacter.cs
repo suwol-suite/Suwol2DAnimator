@@ -65,8 +65,8 @@ namespace Suwol.Suwol2D
                 return;
             }
 
-            // v10 runtime order: time/mixer sampling -> world transforms -> IK -> world recalc,
-            // then attachment/skin resolution, draw order, colors, deform, renderer sync, events, and state transitions.
+            // Runtime order: time/mixer sampling -> world transforms -> transform constraints -> IK -> world recalc,
+            // then attachment/skin resolution, draw order, colors, deform, clipping, renderer sync, events, and state transitions.
             if (animationPlayer.Tick(Time.deltaTime))
             {
                 ApplySampledRuntimeState(true);
@@ -829,6 +829,7 @@ namespace Suwol.Suwol2D
             }
 
             ValidateRuntimeAnimations(data, boneNames, slotNames, attachmentNames, errors);
+            ValidateTransformConstraintsForRuntime(data, boneNames, errors);
             ValidateStateMachinesForRuntime(data, CollectRuntimeAnimationNames(data), errors);
 
             error = string.Join(" ", errors.ToArray());
@@ -979,6 +980,64 @@ namespace Suwol.Suwol2D
             }
 
             return valid;
+        }
+
+        private static void ValidateTransformConstraintsForRuntime(
+            Suwol2DAssetData data,
+            HashSet<string> boneNames,
+            List<string> errors)
+        {
+            if (data == null || data.transformConstraints == null)
+            {
+                return;
+            }
+
+            var names = new HashSet<string>();
+            for (var i = 0; i < data.transformConstraints.Length; i++)
+            {
+                var constraint = data.transformConstraints[i];
+                if (constraint == null)
+                {
+                    continue;
+                }
+
+                var name = string.IsNullOrEmpty(constraint.name) ? "(unnamed)" : constraint.name;
+                if (string.IsNullOrEmpty(constraint.name))
+                {
+                    errors.Add("Transform constraint has an empty name.");
+                }
+                else if (!names.Add(constraint.name))
+                {
+                    errors.Add("Duplicate transform constraint name '" + constraint.name + "'.");
+                }
+
+                if (!boneNames.Contains(constraint.bone))
+                {
+                    errors.Add("Transform constraint '" + name + "' references missing bone '" + constraint.bone + "'.");
+                }
+
+                if (!boneNames.Contains(constraint.targetBone))
+                {
+                    errors.Add("Transform constraint '" + name + "' references missing target bone '" + constraint.targetBone + "'.");
+                }
+
+                if (!string.IsNullOrEmpty(constraint.bone) && constraint.bone == constraint.targetBone)
+                {
+                    errors.Add("Transform constraint '" + name + "' uses the same bone and targetBone.");
+                }
+
+                if (!IsFinite(constraint.translateMix) || !IsFinite(constraint.rotateMix) || !IsFinite(constraint.scaleMix))
+                {
+                    errors.Add("Transform constraint '" + name + "' has a non-finite mix value.");
+                }
+
+                if (!IsFinite(constraint.offsetX) || !IsFinite(constraint.offsetY) ||
+                    !IsFinite(constraint.offsetRotation) || !IsFinite(constraint.offsetScaleX) ||
+                    !IsFinite(constraint.offsetScaleY))
+                {
+                    errors.Add("Transform constraint '" + name + "' contains a non-finite offset.");
+                }
+            }
         }
 
         private static HashSet<string> CollectRuntimeAnimationNames(Suwol2DAssetData data)

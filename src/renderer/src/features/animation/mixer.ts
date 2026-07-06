@@ -1,9 +1,11 @@
-import type { Suwol2DAnimation, Suwol2DDocument, Suwol2DSlot } from '../../../../shared/suwol2d-format';
+import type { Suwol2DAnimation, Suwol2DBone, Suwol2DDocument, Suwol2DSlot } from '../../../../shared/suwol2d-format';
 import {
   type SampledSlotColor,
   type WorldBonePose,
+  resolveDocumentWorldPose,
   sampleAttachmentOverrides,
   sampleDeformOffsets,
+  sampleDocumentLocalPose,
   sampleDocumentPose,
   sampleDrawOrder,
   sampleSlotColor
@@ -29,9 +31,9 @@ export function sampleMixedDocumentPose(document: Suwol2DDocument, mix: PreviewA
     return sampleDocumentPose(document, mix.toAnimationName, mix.toTime ?? 0);
   }
 
-  const fromPose = sampleDocumentPose(document, mix.fromAnimationName, mix.fromTime);
-  const toPose = sampleDocumentPose(document, mix.toAnimationName, mix.toTime ?? 0);
-  const output = new Map<string, WorldBonePose>();
+  const fromPose = sampleDocumentLocalPose(document, mix.fromAnimationName, mix.fromTime);
+  const toPose = sampleDocumentLocalPose(document, mix.toAnimationName, mix.toTime ?? 0);
+  const output = new Map<string, Suwol2DBone>();
   for (const bone of document.bones) {
     const from = fromPose.get(bone.name);
     const to = toPose.get(bone.name);
@@ -49,15 +51,10 @@ export function sampleMixedDocumentPose(document: Suwol2DDocument, mix: PreviewA
       y: lerp(from.y, to.y, mix.weight),
       rotation: lerpAngle(from.rotation, to.rotation, mix.weight),
       scaleX: lerp(from.scaleX, to.scaleX, mix.weight),
-      scaleY: lerp(from.scaleY, to.scaleY, mix.weight),
-      worldX: lerp(from.worldX, to.worldX, mix.weight),
-      worldY: lerp(from.worldY, to.worldY, mix.weight),
-      worldRotation: lerpAngle(from.worldRotation, to.worldRotation, mix.weight),
-      worldScaleX: lerp(from.worldScaleX, to.worldScaleX, mix.weight),
-      worldScaleY: lerp(from.worldScaleY, to.worldScaleY, mix.weight)
+      scaleY: lerp(from.scaleY, to.scaleY, mix.weight)
     });
   }
-  return output;
+  return resolveDocumentWorldPose(document, output);
 }
 
 export function sampleMixedDeformOffsets(
