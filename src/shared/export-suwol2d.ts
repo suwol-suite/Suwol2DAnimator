@@ -33,6 +33,7 @@ import type {
   Suwol2DRotateKey
 } from './suwol2d-format';
 import { collectUniqueAttachmentsByName, defaultSkinName, getEffectiveSkins } from './skins.ts';
+import { normalizeInterpolation } from './interpolation.ts';
 
 export function createUnityRuntimeExport(document: Suwol2DDocument): Suwol2DDocument {
   const skins = cleanSkins(document);
@@ -365,14 +366,16 @@ function cleanTranslateKey(key: Suwol2DTranslateKey): Suwol2DTranslateKey {
   return {
     time: safeNumber(key.time, 0),
     x: safeNumber(key.x, 0),
-    y: safeNumber(key.y, 0)
+    y: safeNumber(key.y, 0),
+    interpolation: normalizeInterpolation(key.interpolation)
   };
 }
 
 function cleanRotateKey(key: Suwol2DRotateKey): Suwol2DRotateKey {
   return {
     time: safeNumber(key.time, 0),
-    rotation: safeNumber(key.rotation, 0)
+    rotation: safeNumber(key.rotation, 0),
+    interpolation: normalizeInterpolation(key.interpolation)
   };
 }
 
@@ -380,7 +383,8 @@ function cleanScaleKey(key: Suwol2DScaleKey): Suwol2DScaleKey {
   return {
     time: safeNumber(key.time, 0),
     scaleX: safeNumber(key.scaleX, 1),
-    scaleY: safeNumber(key.scaleY, 1)
+    scaleY: safeNumber(key.scaleY, 1),
+    interpolation: normalizeInterpolation(key.interpolation)
   };
 }
 
@@ -399,7 +403,8 @@ function cleanDeformKeys(keys: Suwol2DDeformKey[]): Suwol2DDeformKey[] {
   return keys
     .map((key) => ({
       time: safeNumber(key.time, 0),
-      offsets: cleanVertexOffsets(key.offsets ?? [])
+      offsets: cleanVertexOffsets(key.offsets ?? []),
+      interpolation: normalizeInterpolation(key.interpolation)
     }))
     .sort(sortByTime);
 }
@@ -466,7 +471,8 @@ function cleanSlotColorKeys(keys: Suwol2DSlotColorKey[]): Suwol2DSlotColorKey[] 
       r: clamp01(safeNumber(key.r, 1)),
       g: clamp01(safeNumber(key.g, 1)),
       b: clamp01(safeNumber(key.b, 1)),
-      a: clamp01(safeNumber(key.a, 1))
+      a: clamp01(safeNumber(key.a, 1)),
+      interpolation: normalizeInterpolation(key.interpolation)
     }))
     .sort(sortByTime);
 }

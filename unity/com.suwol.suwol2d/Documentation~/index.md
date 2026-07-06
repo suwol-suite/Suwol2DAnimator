@@ -28,6 +28,7 @@ Suwol 2D Animator Electron editor.
 - Attachment timelines
 - Draw order timelines
 - Slot color/alpha timelines
+- Keyframe interpolation presets
 - Event callbacks
 - Translate, rotate, and scale timelines
 - Single-layer animation mixing
@@ -47,6 +48,7 @@ Suwol 2D Animator Electron editor.
 - Animation Timelines v8: `Samples~/AnimationTimelinesV8`
 - Animation Mixing State Machine v10: `Samples~/AnimationMixingStateMachineV10`
 - Timeline Usability v11: `Samples~/TimelineUsabilityV11`
+- Curve Interpolation v20: `Samples~/CurveInterpolationV20`
 
 ## API Overview
 
@@ -90,3 +92,4 @@ skin switching, slot attachment overrides, and animation event callbacks.
 - `editor-timeline-usability-key-editing-v11.md`
 - `packaging-release-readiness-v12.md`
 - `atlas-packing-texture-atlas-v17.md`
+- `curve-interpolation-editor-v20.md`

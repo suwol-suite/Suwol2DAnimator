@@ -107,6 +107,7 @@ namespace Suwol.Suwol2D.Editor
                 CountStateMachineStates(data),
                 CountStateMachineTransitions(data),
                 CountStateMachineParameters(data));
+            report.SetInterpolationSummary(CollectInterpolationSummary(data));
         }
 
         private static void ValidateData(Suwol2DAssetData data, List<string> warnings, List<string> errors)
@@ -589,6 +590,7 @@ namespace Suwol.Suwol2D.Editor
                     }
 
                     ValidateSortedTime(animation.name + "/" + timeline.slot + "/color", key.time, ref previousTime, errors);
+                    ValidateInterpolation(animation.name + "/" + timeline.slot + "/color", key.interpolation, errors);
                     if (!IsFinite(key.r) || !IsFinite(key.g) || !IsFinite(key.b) || !IsFinite(key.a))
                     {
                         errors.Add("Animation '" + animation.name + "' slot color timeline '" + timeline.slot + "' has a non-finite color.");
@@ -785,6 +787,7 @@ namespace Suwol.Suwol2D.Editor
                         }
 
                         ValidateSortedTime(animation.name + "/" + deform.attachment + "/deform", key.time, ref previousTime, errors);
+                        ValidateInterpolation(animation.name + "/" + deform.attachment + "/deform", key.interpolation, errors);
                         var offsets = key.offsets ?? new Suwol2DVertexOffsetData[0];
                         for (var offsetIndex = 0; offsetIndex < offsets.Length; offsetIndex++)
                         {
@@ -1007,6 +1010,7 @@ namespace Suwol.Suwol2D.Editor
                 }
 
                 ValidateSortedTime(label, key.time, ref previousTime, errors);
+                ValidateInterpolation(label, key.interpolation, errors);
                 if (!IsFinite(key.x) || !IsFinite(key.y))
                 {
                     errors.Add("Timeline '" + label + "' contains a non-finite value.");
@@ -1031,6 +1035,7 @@ namespace Suwol.Suwol2D.Editor
                 }
 
                 ValidateSortedTime(label, key.time, ref previousTime, errors);
+                ValidateInterpolation(label, key.interpolation, errors);
                 if (!IsFinite(key.rotation))
                 {
                     errors.Add("Timeline '" + label + "' contains a non-finite value.");
@@ -1055,6 +1060,7 @@ namespace Suwol.Suwol2D.Editor
                 }
 
                 ValidateSortedTime(label, key.time, ref previousTime, errors);
+                ValidateInterpolation(label, key.interpolation, errors);
                 if (!IsFinite(key.scaleX) || !IsFinite(key.scaleY))
                 {
                     errors.Add("Timeline '" + label + "' contains a non-finite value.");
@@ -1081,6 +1087,19 @@ namespace Suwol.Suwol2D.Editor
             }
 
             previousTime = time;
+        }
+
+        private static void ValidateInterpolation(string label, string interpolation, List<string> errors)
+        {
+            if (string.IsNullOrEmpty(interpolation))
+            {
+                return;
+            }
+
+            if (Suwol2DInterpolation.Normalize(interpolation) != interpolation)
+            {
+                errors.Add("Timeline '" + label + "' has unsupported interpolation '" + interpolation + "'.");
+            }
         }
 
         private static bool IsFinite(float value)
@@ -1417,6 +1436,165 @@ namespace Suwol.Suwol2D.Editor
                 count += data.stateMachines[i] != null && data.stateMachines[i].parameters != null ? data.stateMachines[i].parameters.Length : 0;
             }
             return count;
+        }
+
+        private static string CollectInterpolationSummary(Suwol2DAssetData data)
+        {
+            var counts = new Dictionary<string, int>
+            {
+                { Suwol2DInterpolation.Stepped, 0 },
+                { Suwol2DInterpolation.Linear, 0 },
+                { Suwol2DInterpolation.EaseIn, 0 },
+                { Suwol2DInterpolation.EaseOut, 0 },
+                { Suwol2DInterpolation.EaseInOut, 0 }
+            };
+
+            if (data != null && data.animations != null)
+            {
+                for (var animationIndex = 0; animationIndex < data.animations.Length; animationIndex++)
+                {
+                    var animation = data.animations[animationIndex];
+                    if (animation == null)
+                    {
+                        continue;
+                    }
+
+                    CountBoneInterpolationKeys(animation.bones, counts);
+                    CountDeformInterpolationKeys(animation.deforms, counts);
+                    CountSlotColorInterpolationKeys(animation.slots, counts);
+                }
+            }
+
+            return "stepped " + counts[Suwol2DInterpolation.Stepped] +
+                ", linear " + counts[Suwol2DInterpolation.Linear] +
+                ", easeIn " + counts[Suwol2DInterpolation.EaseIn] +
+                ", easeOut " + counts[Suwol2DInterpolation.EaseOut] +
+                ", easeInOut " + counts[Suwol2DInterpolation.EaseInOut];
+        }
+
+        private static void CountBoneInterpolationKeys(Suwol2DBoneTimelineData[] timelines, Dictionary<string, int> counts)
+        {
+            if (timelines == null)
+            {
+                return;
+            }
+
+            for (var timelineIndex = 0; timelineIndex < timelines.Length; timelineIndex++)
+            {
+                var timeline = timelines[timelineIndex];
+                if (timeline == null)
+                {
+                    continue;
+                }
+
+                CountTranslateInterpolationKeys(timeline.translate, counts);
+                CountRotateInterpolationKeys(timeline.rotate, counts);
+                CountScaleInterpolationKeys(timeline.scale, counts);
+            }
+        }
+
+        private static void CountTranslateInterpolationKeys(Suwol2DTranslateKey[] keys, Dictionary<string, int> counts)
+        {
+            if (keys == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < keys.Length; i++)
+            {
+                if (keys[i] != null)
+                {
+                    IncrementInterpolationCount(counts, keys[i].interpolation);
+                }
+            }
+        }
+
+        private static void CountRotateInterpolationKeys(Suwol2DRotateKey[] keys, Dictionary<string, int> counts)
+        {
+            if (keys == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < keys.Length; i++)
+            {
+                if (keys[i] != null)
+                {
+                    IncrementInterpolationCount(counts, keys[i].interpolation);
+                }
+            }
+        }
+
+        private static void CountScaleInterpolationKeys(Suwol2DScaleKey[] keys, Dictionary<string, int> counts)
+        {
+            if (keys == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < keys.Length; i++)
+            {
+                if (keys[i] != null)
+                {
+                    IncrementInterpolationCount(counts, keys[i].interpolation);
+                }
+            }
+        }
+
+        private static void CountDeformInterpolationKeys(Suwol2DDeformTimelineData[] timelines, Dictionary<string, int> counts)
+        {
+            if (timelines == null)
+            {
+                return;
+            }
+
+            for (var timelineIndex = 0; timelineIndex < timelines.Length; timelineIndex++)
+            {
+                var keys = timelines[timelineIndex] != null ? timelines[timelineIndex].keys : null;
+                if (keys == null)
+                {
+                    continue;
+                }
+
+                for (var keyIndex = 0; keyIndex < keys.Length; keyIndex++)
+                {
+                    if (keys[keyIndex] != null)
+                    {
+                        IncrementInterpolationCount(counts, keys[keyIndex].interpolation);
+                    }
+                }
+            }
+        }
+
+        private static void CountSlotColorInterpolationKeys(Suwol2DSlotTimelineData[] timelines, Dictionary<string, int> counts)
+        {
+            if (timelines == null)
+            {
+                return;
+            }
+
+            for (var timelineIndex = 0; timelineIndex < timelines.Length; timelineIndex++)
+            {
+                var keys = timelines[timelineIndex] != null ? timelines[timelineIndex].color : null;
+                if (keys == null)
+                {
+                    continue;
+                }
+
+                for (var keyIndex = 0; keyIndex < keys.Length; keyIndex++)
+                {
+                    if (keys[keyIndex] != null)
+                    {
+                        IncrementInterpolationCount(counts, keys[keyIndex].interpolation);
+                    }
+                }
+            }
+        }
+
+        private static void IncrementInterpolationCount(Dictionary<string, int> counts, string interpolation)
+        {
+            var normalized = Suwol2DInterpolation.Normalize(interpolation);
+            counts[normalized] = counts[normalized] + 1;
         }
 
         private static HashSet<string> CollectAnimationNameSet(Suwol2DAssetData data)

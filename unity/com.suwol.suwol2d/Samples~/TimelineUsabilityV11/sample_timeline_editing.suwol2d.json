@@ -248,27 +248,32 @@
             {
               "time": 0,
               "x": -0.08,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             },
             {
               "time": 0.3,
               "x": 0.08,
-              "y": 0.08
+              "y": 0.08,
+              "interpolation": "linear"
             },
             {
               "time": 0.6,
               "x": -0.08,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             },
             {
               "time": 0.9,
               "x": 0.08,
-              "y": 0.08
+              "y": 0.08,
+              "interpolation": "linear"
             },
             {
               "time": 1.2,
               "x": -0.08,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             }
           ],
           "rotate": [],
@@ -276,17 +281,20 @@
             {
               "time": 0,
               "scaleX": 1,
-              "scaleY": 1
+              "scaleY": 1,
+              "interpolation": "linear"
             },
             {
               "time": 0.6,
               "scaleX": 1.04,
-              "scaleY": 0.98
+              "scaleY": 0.98,
+              "interpolation": "linear"
             },
             {
               "time": 1.2,
               "scaleX": 1,
-              "scaleY": 1
+              "scaleY": 1,
+              "interpolation": "linear"
             }
           ]
         },
@@ -296,23 +304,28 @@
           "rotate": [
             {
               "time": 0,
-              "rotation": -42
+              "rotation": -42,
+              "interpolation": "linear"
             },
             {
               "time": 0.3,
-              "rotation": 34
+              "rotation": 34,
+              "interpolation": "linear"
             },
             {
               "time": 0.6,
-              "rotation": -42
+              "rotation": -42,
+              "interpolation": "linear"
             },
             {
               "time": 0.9,
-              "rotation": 34
+              "rotation": 34,
+              "interpolation": "linear"
             },
             {
               "time": 1.2,
-              "rotation": -42
+              "rotation": -42,
+              "interpolation": "linear"
             }
           ],
           "scale": []
@@ -346,7 +359,8 @@
                   "x": 0,
                   "y": 0
                 }
-              ]
+              ],
+              "interpolation": "linear"
             },
             {
               "time": 0.6,
@@ -371,7 +385,8 @@
                   "x": -0.04,
                   "y": 0.05
                 }
-              ]
+              ],
+              "interpolation": "linear"
             },
             {
               "time": 1.2,
@@ -396,7 +411,8 @@
                   "x": 0,
                   "y": 0
                 }
-              ]
+              ],
+              "interpolation": "linear"
             }
           ]
         }
@@ -486,21 +502,24 @@
               "r": 1,
               "g": 1,
               "b": 1,
-              "a": 1
+              "a": 1,
+              "interpolation": "linear"
             },
             {
               "time": 0.6,
               "r": 1,
               "g": 0.72,
               "b": 0.72,
-              "a": 0.78
+              "a": 0.78,
+              "interpolation": "linear"
             },
             {
               "time": 1.2,
               "r": 1,
               "g": 1,
               "b": 1,
-              "a": 1
+              "a": 1,
+              "interpolation": "linear"
             }
           ]
         }
@@ -540,15 +559,18 @@
           "rotate": [
             {
               "time": 0,
-              "rotation": -70
+              "rotation": -70,
+              "interpolation": "linear"
             },
             {
               "time": 0.18,
-              "rotation": 65
+              "rotation": 65,
+              "interpolation": "linear"
             },
             {
               "time": 0.42,
-              "rotation": -24
+              "rotation": -24,
+              "interpolation": "linear"
             }
           ],
           "scale": []
@@ -601,21 +623,24 @@
               "r": 1,
               "g": 1,
               "b": 1,
-              "a": 1
+              "a": 1,
+              "interpolation": "linear"
             },
             {
               "time": 0.2,
               "r": 1,
               "g": 0.55,
               "b": 0.35,
-              "a": 0.68
+              "a": 0.68,
+              "interpolation": "linear"
             },
             {
               "time": 0.42,
               "r": 1,
               "g": 1,
               "b": 1,
-              "a": 1
+              "a": 1,
+              "interpolation": "linear"
             }
           ]
         }

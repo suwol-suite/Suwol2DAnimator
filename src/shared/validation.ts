@@ -8,10 +8,12 @@ import type {
   Suwol2DIkConstraint,
   Suwol2DMeshAttachment,
   Suwol2DStateMachine,
-  Suwol2DSlotTimeline
+  Suwol2DSlotTimeline,
+  Suwol2DInterpolation
 } from './suwol2d-format';
 import { defaultSkinName, getEffectiveSkins } from './skins.ts';
 import type { TranslationKey, TranslationParams } from './i18n/types';
+import { isSuwol2DInterpolation } from './interpolation.ts';
 
 export type ValidationSeverity = 'error' | 'warning';
 
@@ -122,14 +124,17 @@ export function validateDocument(document: Suwol2DDocument): ValidationResult {
       for (const key of timeline.translate) {
         validateKeyTime(issues, animation.name, timeline.bone, key.time);
         validateFiniteTransform(issues, `Translate key '${animation.name}/${timeline.bone}'`, [key.x, key.y]);
+        validateInterpolation(issues, animation.name, `translate '${timeline.bone}'`, key.interpolation);
       }
       for (const key of timeline.rotate) {
         validateKeyTime(issues, animation.name, timeline.bone, key.time);
         validateFiniteTransform(issues, `Rotate key '${animation.name}/${timeline.bone}'`, [key.rotation]);
+        validateInterpolation(issues, animation.name, `rotate '${timeline.bone}'`, key.interpolation);
       }
       for (const key of timeline.scale) {
         validateKeyTime(issues, animation.name, timeline.bone, key.time);
         validateFiniteTransform(issues, `Scale key '${animation.name}/${timeline.bone}'`, [key.scaleX, key.scaleY]);
+        validateInterpolation(issues, animation.name, `scale '${timeline.bone}'`, key.interpolation);
       }
     }
 
@@ -209,6 +214,23 @@ function localizeValidationIssue(issue: ValidationIssue): ValidationIssue {
   const invalidKeyTime = message.match(/^Animation '(.+?)' has invalid key time/);
   if (invalidKeyTime) {
     return withKey(issue, 'validation.invalidKeyTime', { animation: invalidKeyTime[1] });
+  }
+
+  const invalidInterpolation = message.match(/^Animation '(.+?)' (.+?) key has unsupported interpolation '(.+?)'\.$/);
+  if (invalidInterpolation) {
+    return withKey(issue, 'validation.invalidInterpolation', {
+      animation: invalidInterpolation[1],
+      label: invalidInterpolation[2],
+      value: invalidInterpolation[3]
+    });
+  }
+
+  const ignoredInterpolation = message.match(/^Animation '(.+?)' (.+?) ignores interpolation on discrete keys\.$/);
+  if (ignoredInterpolation) {
+    return withKey(issue, 'validation.interpolationIgnoredForDiscreteTimeline', {
+      animation: ignoredInterpolation[1],
+      label: ignoredInterpolation[2]
+    });
   }
 
   const invalidNumber = message.match(/^(.+?) contains NaN or Infinity\.$/);
@@ -521,6 +543,7 @@ function validateAttachmentTimelines(
     const seenTimes = new Set<number>();
     for (const key of timeline.keys ?? []) {
       validateTimelineKeyTime(issues, animationName, `attachment timeline '${label}'`, key.time);
+      validateNoDiscreteInterpolation(issues, animationName, `attachment timeline '${label}'`, key);
       const timeKey = normalizeTimeKey(key.time);
       if (seenTimes.has(timeKey)) {
         issues.push({
@@ -560,6 +583,7 @@ function validateDrawOrderTimelines(
   const seenTimes = new Set<number>();
   for (const key of keys) {
     validateTimelineKeyTime(issues, animationName, 'draw order timeline', key.time);
+    validateNoDiscreteInterpolation(issues, animationName, 'draw order timeline', key);
     const timeKey = normalizeTimeKey(key.time);
     if (seenTimes.has(timeKey)) {
       issues.push({
@@ -639,6 +663,7 @@ function validateSlotColorTimelines(
     const seenTimes = new Set<number>();
     for (const key of timeline.color ?? []) {
       validateTimelineKeyTime(issues, animationName, `slot color timeline '${label}'`, key.time);
+      validateInterpolation(issues, animationName, `slot color '${label}'`, key.interpolation);
       const timeKey = normalizeTimeKey(key.time);
       if (seenTimes.has(timeKey)) {
         issues.push({
@@ -668,6 +693,7 @@ function validateEventTimeline(issues: ValidationIssue[], animationName: string,
   const seen = new Set<string>();
   for (const event of events) {
     validateTimelineKeyTime(issues, animationName, 'event timeline', event.time);
+    validateNoDiscreteInterpolation(issues, animationName, 'event timeline', event);
 
     const name = event.name.trim();
     if (!name) {
@@ -706,6 +732,48 @@ function validateTimelineKeyTime(issues: ValidationIssue[], animationName: strin
     issues.push({
       severity: 'error',
       message: `Animation '${animationName}' has invalid key time in ${label}.`
+    });
+  }
+}
+
+function validateInterpolation(
+  issues: ValidationIssue[],
+  animationName: string,
+  label: string,
+  interpolation: Suwol2DInterpolation | undefined
+): void {
+  if (interpolation === undefined) {
+    return;
+  }
+
+  if (!isSuwol2DInterpolation(interpolation)) {
+    issues.push({
+      severity: 'error',
+      message: `Animation '${animationName}' ${label} key has unsupported interpolation '${String(interpolation)}'.`
+    });
+  }
+}
+
+function validateNoDiscreteInterpolation(
+  issues: ValidationIssue[],
+  animationName: string,
+  label: string,
+  key: object
+): void {
+  const interpolation = (key as { interpolation?: unknown }).interpolation;
+  if (interpolation === undefined) {
+    return;
+  }
+
+  issues.push({
+    severity: 'warning',
+    message: `Animation '${animationName}' ${label} ignores interpolation on discrete keys.`
+  });
+
+  if (!isSuwol2DInterpolation(interpolation)) {
+    issues.push({
+      severity: 'error',
+      message: `Animation '${animationName}' ${label} key has unsupported interpolation '${String(interpolation)}'.`
     });
   }
 }
@@ -859,6 +927,7 @@ function validateDeformTimelines(
           message: `Animation '${animationName}' deform timeline '${timelineKey}' has invalid key time.`
         });
       }
+      validateInterpolation(issues, animationName, `deform '${timelineKey}'`, key.interpolation);
 
       const timeKey = Number.isFinite(key.time) ? Number(key.time.toFixed(4)) : key.time;
       if (seenTimes.has(timeKey)) {

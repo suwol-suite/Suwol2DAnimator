@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name": "sample_timeline_editing",
+  "name": "sample_curve_interpolation",
   "bones": [
     {
       "name": "root",
@@ -237,6 +237,69 @@
     }
   ],
   "animations": [
+    {
+      "name": "idle",
+      "loop": true,
+      "duration": 1,
+      "bones": [
+        {
+          "bone": "root",
+          "translate": [
+            {
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "x": 0,
+              "y": 0.08,
+              "interpolation": "easeInOut"
+            },
+            {
+              "time": 1,
+              "x": 0,
+              "y": 0,
+              "interpolation": "linear"
+            }
+          ],
+          "rotate": [],
+          "scale": []
+        }
+      ],
+      "slots": [
+        {
+          "slot": "body_slot",
+          "color": [
+            {
+              "time": 0,
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1,
+              "interpolation": "easeOut"
+            },
+            {
+              "time": 0.5,
+              "r": 0.85,
+              "g": 1,
+              "b": 0.95,
+              "a": 1,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1,
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "walk",
       "loop": true,
@@ -549,74 +612,183 @@
       ]
     },
     {
-      "name": "attack",
-      "loop": false,
-      "duration": 0.8,
+      "name": "curve_test",
+      "loop": true,
+      "duration": 1,
       "bones": [
+        {
+          "bone": "root",
+          "translate": [
+            {
+              "time": 0,
+              "x": -0.24,
+              "y": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.25,
+              "x": -0.08,
+              "y": 0.18,
+              "interpolation": "easeIn"
+            },
+            {
+              "time": 0.5,
+              "x": 0.08,
+              "y": -0.02,
+              "interpolation": "easeOut"
+            },
+            {
+              "time": 0.75,
+              "x": 0.24,
+              "y": 0.18,
+              "interpolation": "easeInOut"
+            },
+            {
+              "time": 1,
+              "x": -0.24,
+              "y": 0,
+              "interpolation": "linear"
+            }
+          ],
+          "rotate": [],
+          "scale": [
+            {
+              "time": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "scaleX": 1.08,
+              "scaleY": 0.94,
+              "interpolation": "easeOut"
+            },
+            {
+              "time": 1,
+              "scaleX": 1,
+              "scaleY": 1,
+              "interpolation": "linear"
+            }
+          ]
+        },
         {
           "bone": "arm",
           "translate": [],
           "rotate": [
             {
               "time": 0,
-              "rotation": -70,
+              "rotation": -48,
+              "interpolation": "stepped"
+            },
+            {
+              "time": 0.35,
+              "rotation": 48,
+              "interpolation": "easeInOut"
+            },
+            {
+              "time": 0.7,
+              "rotation": -28,
               "interpolation": "linear"
             },
             {
-              "time": 0.18,
-              "rotation": 65,
-              "interpolation": "linear"
-            },
-            {
-              "time": 0.42,
-              "rotation": -24,
+              "time": 1,
+              "rotation": -48,
               "interpolation": "linear"
             }
           ],
           "scale": []
         }
       ],
-      "attachments": [
+      "deforms": [
         {
-          "slot": "weapon_slot",
+          "slot": "arm_slot",
+          "attachment": "arm_timeline_mesh",
           "keys": [
             {
               "time": 0,
-              "attachment": "sword"
+              "offsets": [
+                {
+                  "vertex": 0,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 1,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 2,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 3,
+                  "x": 0,
+                  "y": 0
+                }
+              ],
+              "interpolation": "easeInOut"
             },
             {
-              "time": 0.2,
-              "attachment": "axe"
+              "time": 0.5,
+              "offsets": [
+                {
+                  "vertex": 0,
+                  "x": -0.02,
+                  "y": -0.03
+                },
+                {
+                  "vertex": 1,
+                  "x": 0.02,
+                  "y": -0.03
+                },
+                {
+                  "vertex": 2,
+                  "x": 0.08,
+                  "y": 0.09
+                },
+                {
+                  "vertex": 3,
+                  "x": -0.07,
+                  "y": 0.07
+                }
+              ],
+              "interpolation": "linear"
             },
             {
-              "time": 0.42,
-              "attachment": "sword"
-            }
-          ]
-        }
-      ],
-      "drawOrders": [
-        {
-          "time": 0,
-          "slots": [
-            {
-              "slot": "body_slot",
-              "drawOrder": 0
-            },
-            {
-              "slot": "arm_slot",
-              "drawOrder": 1
-            },
-            {
-              "slot": "weapon_slot",
-              "drawOrder": 2
+              "time": 1,
+              "offsets": [
+                {
+                  "vertex": 0,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 1,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 2,
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "vertex": 3,
+                  "x": 0,
+                  "y": 0
+                }
+              ],
+              "interpolation": "linear"
             }
           ]
         }
       ],
       "slots": [
         {
-          "slot": "weapon_slot",
+          "slot": "body_slot",
           "color": [
             {
               "time": 0,
@@ -624,18 +796,18 @@
               "g": 1,
               "b": 1,
               "a": 1,
+              "interpolation": "easeOut"
+            },
+            {
+              "time": 0.5,
+              "r": 0.55,
+              "g": 0.92,
+              "b": 1,
+              "a": 0.72,
               "interpolation": "linear"
             },
             {
-              "time": 0.2,
-              "r": 1,
-              "g": 0.55,
-              "b": 0.35,
-              "a": 0.68,
-              "interpolation": "linear"
-            },
-            {
-              "time": 0.42,
+              "time": 1,
               "r": 1,
               "g": 1,
               "b": 1,
@@ -643,22 +815,6 @@
               "interpolation": "linear"
             }
           ]
-        }
-      ],
-      "events": [
-        {
-          "time": 0.2,
-          "name": "attack",
-          "intValue": 1,
-          "floatValue": 0,
-          "stringValue": "slash"
-        },
-        {
-          "time": 0.6,
-          "name": "recover",
-          "intValue": 0,
-          "floatValue": 0.8,
-          "stringValue": "end"
         }
       ]
     }

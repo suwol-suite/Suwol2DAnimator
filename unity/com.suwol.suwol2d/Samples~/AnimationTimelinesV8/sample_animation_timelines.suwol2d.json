@@ -2,33 +2,67 @@
   "version": 0,
   "name": "sample_animation_timelines",
   "bones": [
-    { "name": "root", "parent": "", "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1 },
-    { "name": "body", "parent": "root", "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1 },
-    { "name": "arm", "parent": "body", "x": 0.42, "y": 0.24, "rotation": -8, "scaleX": 1, "scaleY": 1 },
-    { "name": "weapon", "parent": "arm", "x": 0.36, "y": -0.18, "rotation": -18, "scaleX": 1, "scaleY": 1 }
+    {
+      "name": "root",
+      "parent": "",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1
+    },
+    {
+      "name": "body",
+      "parent": "root",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1
+    },
+    {
+      "name": "arm",
+      "parent": "body",
+      "x": 0.42,
+      "y": 0.24,
+      "rotation": -8,
+      "scaleX": 1,
+      "scaleY": 1
+    },
+    {
+      "name": "weapon",
+      "parent": "arm",
+      "x": 0.36,
+      "y": -0.18,
+      "rotation": -18,
+      "scaleX": 1,
+      "scaleY": 1
+    }
   ],
   "slots": [
-    { "name": "body_slot", "bone": "body", "attachment": "body", "drawOrder": 0 },
-    { "name": "arm_slot", "bone": "arm", "attachment": "arm", "drawOrder": 1 },
-    { "name": "weapon_slot", "bone": "weapon", "attachment": "sword", "drawOrder": 2 }
+    {
+      "name": "body_slot",
+      "bone": "body",
+      "attachment": "body",
+      "drawOrder": 0
+    },
+    {
+      "name": "arm_slot",
+      "bone": "arm",
+      "attachment": "arm",
+      "drawOrder": 1
+    },
+    {
+      "name": "weapon_slot",
+      "bone": "weapon",
+      "attachment": "sword",
+      "drawOrder": 2
+    }
   ],
   "skins": [
     {
       "name": "default",
       "attachments": [
-        {
-          "name": "body",
-          "slot": "body_slot",
-          "type": "region",
-          "image": "body",
-          "x": 0,
-          "y": 0,
-          "rotation": 0,
-          "width": 0.9,
-          "height": 1.35,
-          "scaleX": 1,
-          "scaleY": 1
-        },
         {
           "name": "arm",
           "slot": "arm_slot",
@@ -43,15 +77,15 @@
           "scaleY": 1
         },
         {
-          "name": "sword",
-          "slot": "weapon_slot",
+          "name": "body",
+          "slot": "body_slot",
           "type": "region",
-          "image": "sword",
-          "x": 0.28,
-          "y": -0.02,
-          "rotation": -12,
-          "width": 0.18,
-          "height": 0.95,
+          "image": "body",
+          "x": 0,
+          "y": 0,
+          "rotation": 0,
+          "width": 0.9,
+          "height": 1.35,
           "scaleX": 1,
           "scaleY": 1
         },
@@ -67,24 +101,24 @@
           "height": 0.82,
           "scaleX": 1,
           "scaleY": 1
+        },
+        {
+          "name": "sword",
+          "slot": "weapon_slot",
+          "type": "region",
+          "image": "sword",
+          "x": 0.28,
+          "y": -0.02,
+          "rotation": -12,
+          "width": 0.18,
+          "height": 0.95,
+          "scaleX": 1,
+          "scaleY": 1
         }
       ]
     }
   ],
   "attachments": [
-    {
-      "name": "body",
-      "slot": "body_slot",
-      "type": "region",
-      "image": "body",
-      "x": 0,
-      "y": 0,
-      "rotation": 0,
-      "width": 0.9,
-      "height": 1.35,
-      "scaleX": 1,
-      "scaleY": 1
-    },
     {
       "name": "arm",
       "slot": "arm_slot",
@@ -99,15 +133,15 @@
       "scaleY": 1
     },
     {
-      "name": "sword",
-      "slot": "weapon_slot",
+      "name": "body",
+      "slot": "body_slot",
       "type": "region",
-      "image": "sword",
-      "x": 0.28,
-      "y": -0.02,
-      "rotation": -12,
-      "width": 0.18,
-      "height": 0.95,
+      "image": "body",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "width": 0.9,
+      "height": 1.35,
       "scaleX": 1,
       "scaleY": 1
     },
@@ -123,6 +157,19 @@
       "height": 0.82,
       "scaleX": 1,
       "scaleY": 1
+    },
+    {
+      "name": "sword",
+      "slot": "weapon_slot",
+      "type": "region",
+      "image": "sword",
+      "x": 0.28,
+      "y": -0.02,
+      "rotation": -12,
+      "width": 0.18,
+      "height": 0.95,
+      "scaleX": 1,
+      "scaleY": 1
     }
   ],
   "animations": [
@@ -133,9 +180,24 @@
         {
           "bone": "root",
           "translate": [
-            { "time": 0, "x": -0.08, "y": 0 },
-            { "time": 0.25, "x": 0.08, "y": 0.08 },
-            { "time": 0.5, "x": -0.08, "y": 0 }
+            {
+              "time": 0,
+              "x": -0.08,
+              "y": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.25,
+              "x": 0.08,
+              "y": 0.08,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "x": -0.08,
+              "y": 0,
+              "interpolation": "linear"
+            }
           ],
           "rotate": [],
           "scale": []
@@ -144,9 +206,21 @@
           "bone": "arm",
           "translate": [],
           "rotate": [
-            { "time": 0, "rotation": -42 },
-            { "time": 0.25, "rotation": 34 },
-            { "time": 0.5, "rotation": -42 }
+            {
+              "time": 0,
+              "rotation": -42,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.25,
+              "rotation": 34,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "rotation": -42,
+              "interpolation": "linear"
+            }
           ],
           "scale": []
         }
@@ -155,9 +229,18 @@
         {
           "slot": "weapon_slot",
           "keys": [
-            { "time": 0, "attachment": "sword" },
-            { "time": 0.25, "attachment": "axe" },
-            { "time": 0.45, "attachment": null }
+            {
+              "time": 0,
+              "attachment": "sword"
+            },
+            {
+              "time": 0.25,
+              "attachment": "axe"
+            },
+            {
+              "time": 0.45,
+              "attachment": null
+            }
           ]
         }
       ],
@@ -165,17 +248,35 @@
         {
           "time": 0,
           "slots": [
-            { "slot": "body_slot", "drawOrder": 0 },
-            { "slot": "arm_slot", "drawOrder": 1 },
-            { "slot": "weapon_slot", "drawOrder": 2 }
+            {
+              "slot": "body_slot",
+              "drawOrder": 0
+            },
+            {
+              "slot": "arm_slot",
+              "drawOrder": 1
+            },
+            {
+              "slot": "weapon_slot",
+              "drawOrder": 2
+            }
           ]
         },
         {
           "time": 0.25,
           "slots": [
-            { "slot": "body_slot", "drawOrder": 0 },
-            { "slot": "weapon_slot", "drawOrder": 1 },
-            { "slot": "arm_slot", "drawOrder": 2 }
+            {
+              "slot": "body_slot",
+              "drawOrder": 0
+            },
+            {
+              "slot": "weapon_slot",
+              "drawOrder": 1
+            },
+            {
+              "slot": "arm_slot",
+              "drawOrder": 2
+            }
           ]
         }
       ],
@@ -183,15 +284,48 @@
         {
           "slot": "body_slot",
           "color": [
-            { "time": 0, "r": 1, "g": 1, "b": 1, "a": 1 },
-            { "time": 0.25, "r": 1, "g": 0.72, "b": 0.72, "a": 0.78 },
-            { "time": 0.5, "r": 1, "g": 1, "b": 1, "a": 1 }
+            {
+              "time": 0,
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.25,
+              "r": 1,
+              "g": 0.72,
+              "b": 0.72,
+              "a": 0.78,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1,
+              "interpolation": "linear"
+            }
           ]
         }
       ],
       "events": [
-        { "time": 0.1, "name": "footstep", "intValue": 0, "floatValue": 1, "stringValue": "left" },
-        { "time": 0.35, "name": "footstep", "intValue": 1, "floatValue": 1, "stringValue": "right" }
+        {
+          "time": 0.1,
+          "name": "footstep",
+          "intValue": 0,
+          "floatValue": 1,
+          "stringValue": "left"
+        },
+        {
+          "time": 0.35,
+          "name": "footstep",
+          "intValue": 1,
+          "floatValue": 1,
+          "stringValue": "right"
+        }
       ]
     },
     {
@@ -202,9 +336,21 @@
           "bone": "arm",
           "translate": [],
           "rotate": [
-            { "time": 0, "rotation": -70 },
-            { "time": 0.18, "rotation": 65 },
-            { "time": 0.42, "rotation": -24 }
+            {
+              "time": 0,
+              "rotation": -70,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.18,
+              "rotation": 65,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.42,
+              "rotation": -24,
+              "interpolation": "linear"
+            }
           ],
           "scale": []
         }
@@ -213,9 +359,18 @@
         {
           "slot": "weapon_slot",
           "keys": [
-            { "time": 0, "attachment": "sword" },
-            { "time": 0.2, "attachment": "axe" },
-            { "time": 0.42, "attachment": "sword" }
+            {
+              "time": 0,
+              "attachment": "sword"
+            },
+            {
+              "time": 0.2,
+              "attachment": "axe"
+            },
+            {
+              "time": 0.42,
+              "attachment": "sword"
+            }
           ]
         }
       ],
@@ -223,9 +378,18 @@
         {
           "time": 0,
           "slots": [
-            { "slot": "body_slot", "drawOrder": 0 },
-            { "slot": "arm_slot", "drawOrder": 1 },
-            { "slot": "weapon_slot", "drawOrder": 2 }
+            {
+              "slot": "body_slot",
+              "drawOrder": 0
+            },
+            {
+              "slot": "arm_slot",
+              "drawOrder": 1
+            },
+            {
+              "slot": "weapon_slot",
+              "drawOrder": 2
+            }
           ]
         }
       ],
@@ -233,14 +397,41 @@
         {
           "slot": "weapon_slot",
           "color": [
-            { "time": 0, "r": 1, "g": 1, "b": 1, "a": 1 },
-            { "time": 0.2, "r": 1, "g": 0.55, "b": 0.35, "a": 0.68 },
-            { "time": 0.42, "r": 1, "g": 1, "b": 1, "a": 1 }
+            {
+              "time": 0,
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.2,
+              "r": 1,
+              "g": 0.55,
+              "b": 0.35,
+              "a": 0.68,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.42,
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1,
+              "interpolation": "linear"
+            }
           ]
         }
       ],
       "events": [
-        { "time": 0.2, "name": "attack", "intValue": 1, "floatValue": 0, "stringValue": "slash" }
+        {
+          "time": 0.2,
+          "name": "attack",
+          "intValue": 1,
+          "floatValue": 0,
+          "stringValue": "slash"
+        }
       ]
     }
   ]

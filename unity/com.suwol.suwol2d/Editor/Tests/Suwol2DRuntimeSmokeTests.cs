@@ -23,7 +23,8 @@ namespace Suwol.Suwol2D.Editor.Tests
             "ImporterPrefabWorkflowV7",
             "AnimationTimelinesV8",
             "AnimationMixingStateMachineV10",
-            "TimelineUsabilityV11"
+            "TimelineUsabilityV11",
+            "CurveInterpolationV20"
         };
 
         public static void RunAll()
@@ -47,7 +48,7 @@ namespace Suwol.Suwol2D.Editor.Tests
                 ValidateAtlasLookupApi();
                 ValidateEventDispatcher(jsonFiles);
 
-                Debug.Log("Suwol2D Runtime Stability v9 + Animation Mixing State Machine v10 + Timeline Usability v11 smoke tests passed.");
+                Debug.Log("Suwol2D Runtime Stability v9 + Animation Mixing State Machine v10 + Timeline Usability v11 + Curve Interpolation v20 smoke tests passed.");
             }
             catch (Exception exception)
             {
@@ -174,6 +175,7 @@ namespace Suwol.Suwol2D.Editor.Tests
                     ValidateSkinAndAttachmentApi(character, data);
                     ValidateAnimationMixingStateMachineApi(character, data, jsonFiles[i]);
                     ValidateTimelineUsabilityDuration(data, jsonFiles[i]);
+                    ValidateCurveInterpolationApi(character, data, jsonFiles[i]);
                     var countBefore = GetRendererViewCount(character);
                     for (var repeat = 0; repeat < 5; repeat++)
                     {
@@ -332,6 +334,155 @@ namespace Suwol.Suwol2D.Editor.Tests
             Assert(Mathf.Abs(attack.duration - 0.8f) < 0.001f, "v11 attack should include explicit duration: " + label);
             Assert(Mathf.Abs(Suwol2DAnimationSampler.GetDuration(walk) - 1.2f) < 0.001f, "sampler should prefer v11 walk explicit duration: " + label);
             Assert(Mathf.Abs(Suwol2DAnimationSampler.GetDuration(attack) - 0.8f) < 0.001f, "sampler should prefer v11 attack explicit duration: " + label);
+        }
+
+        private static void ValidateCurveInterpolationApi(Suwol2DCharacter character, Suwol2DAssetData data, string label)
+        {
+            if (!label.Replace('\\', '/').Contains("/CurveInterpolationV20/"))
+            {
+                return;
+            }
+
+            Assert(Suwol2DInterpolation.Normalize(null) == Suwol2DInterpolation.Linear, "null interpolation should fall back to linear.");
+            Assert(Mathf.Abs(Suwol2DInterpolation.Apply(Suwol2DInterpolation.Linear, 0.25f) - 0.25f) < 0.001f, "linear interpolation should preserve t.");
+            Assert(Mathf.Abs(Suwol2DInterpolation.Apply(Suwol2DInterpolation.EaseInOut, 0.25f) - 0.125f) < 0.001f, "easeInOut should ease t.");
+            Assert(Mathf.Abs(Suwol2DInterpolation.Apply(Suwol2DInterpolation.Stepped, 0.75f)) < 0.001f, "stepped interpolation should hold the current key.");
+
+            var curveTest = FindAnimation(data, "curve_test");
+            Assert(curveTest != null, "v20 sample should include curve_test animation: " + label);
+            Assert(ContainsInterpolation(curveTest, Suwol2DInterpolation.Stepped), "v20 sample should include stepped keys: " + label);
+            Assert(ContainsInterpolation(curveTest, Suwol2DInterpolation.Linear), "v20 sample should include linear keys: " + label);
+            Assert(ContainsInterpolation(curveTest, Suwol2DInterpolation.EaseIn), "v20 sample should include easeIn keys: " + label);
+            Assert(ContainsInterpolation(curveTest, Suwol2DInterpolation.EaseOut), "v20 sample should include easeOut keys: " + label);
+            Assert(ContainsInterpolation(curveTest, Suwol2DInterpolation.EaseInOut), "v20 sample should include easeInOut keys: " + label);
+
+            character.Play("curve_test");
+            Assert(character.GetCurrentAnimationName() == "curve_test", "curve_test should play in runtime: " + label);
+            StepCharacter(character, 0.2f);
+            var arm = character.Skeleton != null ? character.Skeleton.FindBone("arm") : null;
+            Assert(arm != null, "v20 sample should include arm bone: " + label);
+            Assert(Mathf.Abs(arm.LocalTransform.rotation - -48f) < 0.001f, "stepped rotate should hold the previous key before the next key: " + label);
+            AssertNoNaNTransforms(character.gameObject);
+        }
+
+        private static bool ContainsInterpolation(Suwol2DAnimationData animation, string interpolation)
+        {
+            if (animation == null)
+            {
+                return false;
+            }
+
+            if (animation.bones != null)
+            {
+                for (var timelineIndex = 0; timelineIndex < animation.bones.Length; timelineIndex++)
+                {
+                    var timeline = animation.bones[timelineIndex];
+                    if (timeline == null)
+                    {
+                        continue;
+                    }
+
+                    if (ContainsInterpolation(timeline.translate, interpolation) ||
+                        ContainsInterpolation(timeline.rotate, interpolation) ||
+                        ContainsInterpolation(timeline.scale, interpolation))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            if (animation.deforms != null)
+            {
+                for (var timelineIndex = 0; timelineIndex < animation.deforms.Length; timelineIndex++)
+                {
+                    var keys = animation.deforms[timelineIndex] != null ? animation.deforms[timelineIndex].keys : null;
+                    if (keys == null)
+                    {
+                        continue;
+                    }
+
+                    for (var keyIndex = 0; keyIndex < keys.Length; keyIndex++)
+                    {
+                        if (keys[keyIndex] != null && keys[keyIndex].interpolation == interpolation)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            if (animation.slots != null)
+            {
+                for (var timelineIndex = 0; timelineIndex < animation.slots.Length; timelineIndex++)
+                {
+                    var keys = animation.slots[timelineIndex] != null ? animation.slots[timelineIndex].color : null;
+                    if (keys == null)
+                    {
+                        continue;
+                    }
+
+                    for (var keyIndex = 0; keyIndex < keys.Length; keyIndex++)
+                    {
+                        if (keys[keyIndex] != null && keys[keyIndex].interpolation == interpolation)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsInterpolation(Suwol2DTranslateKey[] keys, string interpolation)
+        {
+            if (keys == null)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < keys.Length; i++)
+            {
+                if (keys[i] != null && keys[i].interpolation == interpolation)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static bool ContainsInterpolation(Suwol2DRotateKey[] keys, string interpolation)
+        {
+            if (keys == null)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < keys.Length; i++)
+            {
+                if (keys[i] != null && keys[i].interpolation == interpolation)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static bool ContainsInterpolation(Suwol2DScaleKey[] keys, string interpolation)
+        {
+            if (keys == null)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < keys.Length; i++)
+            {
+                if (keys[i] != null && keys[i].interpolation == interpolation)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static void ValidateImporterAssets(string copiedRoot)

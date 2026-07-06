@@ -10,6 +10,7 @@ import type {
   Suwol2DSlotColorKey,
   Suwol2DTranslateKey
 } from '../../../../shared/suwol2d-format';
+import { normalizeInterpolation } from '../../../../shared/interpolation';
 
 export type TimelineKeyType =
   | 'boneTranslate'
@@ -69,13 +70,13 @@ export function collectTimelineKeyRows(animation: Suwol2DAnimation | undefined):
 
   const rows: TimelineKeyRow[] = [];
   for (const timeline of animation.bones ?? []) {
-    timeline.translate?.forEach((key, index) => rows.push(createRow(animation.name, 'boneTranslate', timeline.bone, index, key.time, 'Bone Translate', timeline.bone, `${formatNumber(key.x)}, ${formatNumber(key.y)}`, 'bone')));
-    timeline.rotate?.forEach((key, index) => rows.push(createRow(animation.name, 'boneRotate', timeline.bone, index, key.time, 'Bone Rotate', timeline.bone, `${formatNumber(key.rotation)} deg`, 'bone')));
-    timeline.scale?.forEach((key, index) => rows.push(createRow(animation.name, 'boneScale', timeline.bone, index, key.time, 'Bone Scale', timeline.bone, `${formatNumber(key.scaleX)}, ${formatNumber(key.scaleY)}`, 'bone')));
+    timeline.translate?.forEach((key, index) => rows.push(createRow(animation.name, 'boneTranslate', timeline.bone, index, key.time, 'Bone Translate', timeline.bone, withInterpolation(`${formatNumber(key.x)}, ${formatNumber(key.y)}`, key.interpolation), 'bone')));
+    timeline.rotate?.forEach((key, index) => rows.push(createRow(animation.name, 'boneRotate', timeline.bone, index, key.time, 'Bone Rotate', timeline.bone, withInterpolation(`${formatNumber(key.rotation)} deg`, key.interpolation), 'bone')));
+    timeline.scale?.forEach((key, index) => rows.push(createRow(animation.name, 'boneScale', timeline.bone, index, key.time, 'Bone Scale', timeline.bone, withInterpolation(`${formatNumber(key.scaleX)}, ${formatNumber(key.scaleY)}`, key.interpolation), 'bone')));
   }
 
   for (const timeline of animation.deforms ?? []) {
-    timeline.keys?.forEach((key, index) => rows.push(createRow(animation.name, 'deform', `${timeline.slot}/${timeline.attachment}`, index, key.time, 'Deform', `${timeline.slot} / ${timeline.attachment}`, `${key.offsets?.length ?? 0} offsets`, 'deform')));
+    timeline.keys?.forEach((key, index) => rows.push(createRow(animation.name, 'deform', `${timeline.slot}/${timeline.attachment}`, index, key.time, 'Deform', `${timeline.slot} / ${timeline.attachment}`, withInterpolation(`${key.offsets?.length ?? 0} offsets`, key.interpolation), 'deform')));
   }
 
   for (const timeline of animation.attachments ?? []) {
@@ -85,7 +86,7 @@ export function collectTimelineKeyRows(animation: Suwol2DAnimation | undefined):
   (animation.drawOrders ?? []).forEach((key, index) => rows.push(createRow(animation.name, 'drawOrder', 'drawOrder', index, key.time, 'Draw Order', 'drawOrder', `${key.slots?.length ?? 0} slots`, 'drawOrder')));
 
   for (const timeline of animation.slots ?? []) {
-    timeline.color?.forEach((key, index) => rows.push(createRow(animation.name, 'slotColor', timeline.slot, index, key.time, 'Slot Color', timeline.slot, `rgba(${formatNumber(key.r)}, ${formatNumber(key.g)}, ${formatNumber(key.b)}, ${formatNumber(key.a)})`, 'slotColor')));
+    timeline.color?.forEach((key, index) => rows.push(createRow(animation.name, 'slotColor', timeline.slot, index, key.time, 'Slot Color', timeline.slot, withInterpolation(`rgba(${formatNumber(key.r)}, ${formatNumber(key.g)}, ${formatNumber(key.b)}, ${formatNumber(key.a)})`, key.interpolation), 'slotColor')));
   }
 
   (animation.events ?? []).forEach((key, index) => rows.push(createRow(animation.name, 'event', 'events', index, key.time, 'Event', key.name || '(unnamed)', [key.intValue, key.floatValue, key.stringValue].filter((value) => value !== undefined && value !== '').join(' / ') || 'event', 'event')));
@@ -374,4 +375,8 @@ function sortByTime<T extends { time: number }>(a: T, b: T): number {
 
 function formatNumber(value: number): string {
   return Number.isFinite(value) ? Number(value.toFixed(3)).toString() : '0';
+}
+
+function withInterpolation(valueLabel: string, interpolation: unknown): string {
+  return `${valueLabel} | ${normalizeInterpolation(interpolation)}`;
 }

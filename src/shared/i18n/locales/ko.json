@@ -75,7 +75,8 @@
     "skin": "스킨 샘플",
     "timelines": "애니메이션 타임라인 샘플",
     "stateMachine": "믹싱 상태 샘플",
-    "timelineEditing": "타임라인 편집 샘플"
+    "timelineEditing": "타임라인 편집 샘플",
+    "interpolation": "보간 샘플"
   },
   "menu": {
     "file": "파일",
@@ -182,6 +183,7 @@
     "timelinesSampleCreated": "애니메이션 타임라인 샘플이 생성되었습니다. attachment, draw order, slot color, event 타임라인을 확인해 보세요.",
     "stateMachineSampleCreated": "Animation Mixing / State Machine 샘플이 생성되었습니다. 프리뷰를 시작하고 moving을 바꾸거나 attack을 실행해 보세요.",
     "timelineEditingSampleCreated": "타임라인 편집 샘플이 생성되었습니다. 키 필터, 복사/붙여넣기, 복제, 스냅, 선택 키 인스펙터를 확인해 보세요.",
+    "interpolationSampleCreated": "보간 샘플이 생성되었습니다. 선택 키 인스펙터에서 stepped, linear, easing preset을 확인해 보세요.",
     "createOrOpenBeforeExport": "내보내려면 프로젝트를 만들거나 여세요.",
     "exportBlocked": "내보내기 차단됨: 오류 {{count}}개. 검증 패널을 확인하세요.",
     "exportCompleted": "내보내기 완료: {{path}}. {{textures}}{{warnings}}",
@@ -241,6 +243,8 @@
     "meshWeightMissingBone": "메시 어태치먼트 '{{name}}'가 없는 weight 본 '{{bone}}'을 참조합니다.",
     "stateMachineMissingAnimation": "상태 머신 '{{machine}}'의 state '{{state}}'가 없는 애니메이션 '{{animation}}'을 참조합니다.",
     "ikMissingBone": "IK 제약 '{{constraint}}'이 없는 {{role}} 본 '{{bone}}'을 참조합니다.",
+    "invalidInterpolation": "애니메이션 '{{animation}}'의 {{label}} 키에 지원하지 않는 보간 '{{value}}'가 있습니다.",
+    "interpolationIgnoredForDiscreteTimeline": "애니메이션 '{{animation}}'의 {{label}}은 discrete timeline이라 보간을 무시합니다.",
     "atlasRegionOutOfBounds": "???? '{{atlas}}'? ?? '{{region}}'? ??? ?????.",
     "duplicateAtlasRegion": "??? ???? ??: {{region}}"
   },
@@ -258,6 +262,12 @@
     "drawOrder": "드로우 순서",
     "slotColor": "슬롯 색상",
     "event": "이벤트",
+    "interpolation": "보간 방식",
+    "interpolation.stepped": "Stepped",
+    "interpolation.linear": "Linear",
+    "interpolation.easeIn": "Ease In",
+    "interpolation.easeOut": "Ease Out",
+    "interpolation.easeInOut": "Ease In-Out",
     "keys": "키",
     "visible": "{{count}}개 표시",
     "noKeys": "현재 필터와 일치하는 키가 없습니다.",
@@ -321,7 +331,7 @@
     "supported": "지원 기능",
     "license": "라이선스",
     "docs": "문서",
-    "supportedFeatures": "region, mesh, weighted mesh, deform, IK, skins, timelines, state machine"
+    "supportedFeatures": "region, mesh, weighted mesh, deform, interpolation, IK, skins, timelines, state machine"
   },
   "inspector": {
     "document": "문서",

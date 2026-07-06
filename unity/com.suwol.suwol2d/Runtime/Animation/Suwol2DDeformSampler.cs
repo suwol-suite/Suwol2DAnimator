@@ -46,7 +46,9 @@ namespace Suwol.Suwol2D
                     continue;
                 }
 
-                var t = InverseLerpClamped(previous.time, next.time, time);
+                var t = Suwol2DInterpolation.Apply(
+                    previous.interpolation,
+                    Suwol2DInterpolation.InverseLerpClamped(previous.time, next.time, time));
                 var previousOffsets = CreateZeroOffsets(vertexCount);
                 var nextOffsets = CreateZeroOffsets(vertexCount);
                 FillOffsets(previousOffsets, previous);
@@ -129,14 +131,5 @@ namespace Suwol.Suwol2D
             }
         }
 
-        private static float InverseLerpClamped(float a, float b, float value)
-        {
-            if (Mathf.Approximately(a, b))
-            {
-                return 1f;
-            }
-
-            return Mathf.Clamp01((value - a) / (b - a));
-        }
     }
 }

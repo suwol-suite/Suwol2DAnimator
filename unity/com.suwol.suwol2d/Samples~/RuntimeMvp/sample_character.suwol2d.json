@@ -116,17 +116,20 @@
             {
               "time": 0,
               "x": 0,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
               "x": 0,
-              "y": 0.16
+              "y": 0.16,
+              "interpolation": "linear"
             },
             {
               "time": 1,
               "x": 0,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             }
           ],
           "rotate": [],
@@ -138,15 +141,18 @@
           "rotate": [
             {
               "time": 0,
-              "rotation": -7
+              "rotation": -7,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
-              "rotation": 7
+              "rotation": 7,
+              "interpolation": "linear"
             },
             {
               "time": 1,
-              "rotation": -7
+              "rotation": -7,
+              "interpolation": "linear"
             }
           ],
           "scale": []
@@ -163,17 +169,20 @@
             {
               "time": 0,
               "x": -0.1,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             },
             {
               "time": 0.25,
               "x": 0.1,
-              "y": 0.08
+              "y": 0.08,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
               "x": -0.1,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             }
           ],
           "rotate": [],
@@ -185,15 +194,18 @@
           "rotate": [
             {
               "time": 0,
-              "rotation": -65
+              "rotation": -65,
+              "interpolation": "linear"
             },
             {
               "time": 0.25,
-              "rotation": 65
+              "rotation": 65,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
-              "rotation": -65
+              "rotation": -65,
+              "interpolation": "linear"
             }
           ],
           "scale": []

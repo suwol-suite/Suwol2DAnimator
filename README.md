@@ -41,12 +41,14 @@ under `unity/com.suwol.suwol2d/`.
 - Single-layer animation mixing
 - Simple bool/trigger state machines
 - Timeline key editing, snap, copy/paste, duplicate, filters, and explicit duration
+- Keyframe interpolation presets for transform, slot color, and deform timelines
 - Canvas vertex selection/move plus weight and deform brush editing
 - Optional PNG texture atlas export with Unity atlas UV fallback
 
 Out of scope for this release: Spine import/export/runtime compatibility,
-clipping, rotated/trimmed/multi-page atlases, animation layers, blend trees,
-additive animation, telemetry, Windows/macOS auto-updaters, and
+clipping, rotated/trimmed/multi-page atlases, custom bezier handles, graph curve
+editing, animation layers, blend trees, additive animation, telemetry,
+Windows/macOS auto-updaters, and
 licensing/payment systems.
 
 ## Install And Run
@@ -304,9 +306,11 @@ runs include the ZIP, `checksums-linux-x64.txt`, and
 - `docs/atlas-qa-release-refresh-v18.md`
 - `docs/atlas-qa-results-v18.md`
 - `docs/linux-zip-auto-update-v19.md`
+- `docs/curve-interpolation-editor-v20.md`
 - `unity/com.suwol.suwol2d/Documentation~/index.md`
 - `unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md`
 - `unity/com.suwol.suwol2d/Documentation~/atlas-packing-texture-atlas-v17.md`
+- `unity/com.suwol.suwol2d/Documentation~/curve-interpolation-editor-v20.md`
 
 ## License
 

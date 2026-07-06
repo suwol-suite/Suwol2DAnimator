@@ -40,6 +40,7 @@ import type {
   Suwol2DDrawOrderKey,
   Suwol2DEventKey,
   Suwol2DIkConstraint,
+  Suwol2DInterpolation,
   Suwol2DMeshAttachment,
   Suwol2DMeshVertex,
   Suwol2DProjectFile,
@@ -59,6 +60,7 @@ import { uniqueName } from '../../shared/ids';
 import { validateDocument } from '../../shared/validation';
 import type { ValidationIssue } from '../../shared/validation';
 import { createUnityRuntimeExport } from '../../shared/export-suwol2d';
+import { normalizeInterpolation, suwol2DInterpolationValues } from '../../shared/interpolation';
 import { suwolReleaseInfo } from '../../shared/release-info';
 import type { LocaleCode, TranslationKey, TranslationParams } from '../../shared/i18n/types';
 import type { UpdateCheckResult, UpdateDownloadResult, UpdateInstallResult } from '../../shared/update/update-types';
@@ -151,6 +153,7 @@ import {
   createAnimationTimelinesSampleDocument,
   createDeformSampleDocument,
   createIkSampleDocument,
+  createInterpolationSampleDocument,
   createMeshSampleDocument,
   createSampleDocument,
   createSkinSampleDocument,
@@ -909,6 +912,32 @@ export function App() {
     }
   }
 
+  async function handleCreateInterpolationSampleCharacter() {
+    if (!projectFilePath) {
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.interpolation') });
+      return;
+    }
+
+    try {
+      const sampleImages = await window.suwol.project.createAnimationTimelinesSampleAssets(projectFilePath);
+      const mergedImages = mergeImages(project.importedImages, sampleImages);
+      commitProjectChange((draft) => {
+        draft.importedImages = mergedImages;
+        draft.document = createInterpolationSampleDocument(mergedImages);
+      });
+      setActiveSkinName(defaultSkinName);
+      setCurrentAnimationName('curve_test');
+      setCurrentTime(0);
+      setTimelineMode('bone');
+      setTimelineFilter('all');
+      setTimelineKeySelection(null);
+      setSelection({ type: 'bone', name: 'root' });
+      setLocalizedStatus('status.interpolationSampleCreated');
+    } catch (error) {
+      setStatus(getErrorMessage(error));
+    }
+  }
+
   async function handleExportJson() {
     if (!projectFilePath) {
       setLocalizedStatus('status.createOrOpenBeforeExport');
@@ -1406,7 +1435,7 @@ export function App() {
       const timeline = getOrCreateTimeline(animation, selectedBone.name);
       let keyIndex = 0;
       if (kind === 'translate') {
-        const key = timeline.translate.find((candidate) => Math.abs(candidate.time - keyTime) < 0.0001) ?? { time: keyTime, x: selectedBone.x, y: selectedBone.y };
+        const key = timeline.translate.find((candidate) => Math.abs(candidate.time - keyTime) < 0.0001) ?? { time: keyTime, x: selectedBone.x, y: selectedBone.y, interpolation: 'linear' };
         key.x = selectedBone.x;
         key.y = selectedBone.y;
         if (!timeline.translate.includes(key)) timeline.translate.push(key);
@@ -1414,14 +1443,14 @@ export function App() {
         keyIndex = timeline.translate.findIndex((candidate) => candidate === key);
         setTimelineKeySelection({ type: 'boneTranslate', animation: animation.name, target: selectedBone.name, keyIndex });
       } else if (kind === 'rotate') {
-        const key = timeline.rotate.find((candidate) => Math.abs(candidate.time - keyTime) < 0.0001) ?? { time: keyTime, rotation: selectedBone.rotation };
+        const key = timeline.rotate.find((candidate) => Math.abs(candidate.time - keyTime) < 0.0001) ?? { time: keyTime, rotation: selectedBone.rotation, interpolation: 'linear' };
         key.rotation = selectedBone.rotation;
         if (!timeline.rotate.includes(key)) timeline.rotate.push(key);
         timeline.rotate.sort(sortByTime);
         keyIndex = timeline.rotate.findIndex((candidate) => candidate === key);
         setTimelineKeySelection({ type: 'boneRotate', animation: animation.name, target: selectedBone.name, keyIndex });
       } else {
-        const key = timeline.scale.find((candidate) => Math.abs(candidate.time - keyTime) < 0.0001) ?? { time: keyTime, scaleX: selectedBone.scaleX, scaleY: selectedBone.scaleY };
+        const key = timeline.scale.find((candidate) => Math.abs(candidate.time - keyTime) < 0.0001) ?? { time: keyTime, scaleX: selectedBone.scaleX, scaleY: selectedBone.scaleY, interpolation: 'linear' };
         key.scaleX = selectedBone.scaleX;
         key.scaleY = selectedBone.scaleY;
         if (!timeline.scale.includes(key)) timeline.scale.push(key);
@@ -1468,7 +1497,8 @@ export function App() {
     { label: t('sample.skin'), onSelect: handleCreateSkinSampleCharacter },
     { label: t('sample.timelines'), onSelect: handleCreateAnimationTimelinesSampleCharacter },
     { label: t('sample.stateMachine'), onSelect: handleCreateAnimationMixingStateMachineSampleCharacter },
-    { label: t('sample.timelineEditing'), onSelect: handleCreateTimelineUsabilitySampleCharacter }
+    { label: t('sample.timelineEditing'), onSelect: handleCreateTimelineUsabilitySampleCharacter },
+    { label: t('sample.interpolation'), onSelect: handleCreateInterpolationSampleCharacter }
   ];
 
   menuCommandRef.current = (command) => {
@@ -3621,6 +3651,7 @@ function SelectedTimelineKeyInspector({
   const setNumber = (property: string, value: number) => updateSelectedKey((resolvedKey) => {
     (resolvedKey.key as unknown as Record<string, number>)[property] = value;
   });
+  const showInterpolation = supportsInterpolation(selection.type);
 
   return (
     <section className="selected-key-inspector">
@@ -3636,6 +3667,14 @@ function SelectedTimelineKeyInspector({
 
       <div className="selected-key-fields">
         <NumberField label={t('toolbar.time')} value={keyTime} onChange={setKeyTime} />
+        {showInterpolation && (
+          <InterpolationField
+            value={(key as { interpolation?: Suwol2DInterpolation }).interpolation}
+            onChange={(value) => updateSelectedKey((resolvedKey) => {
+              (resolvedKey.key as { interpolation?: Suwol2DInterpolation }).interpolation = value;
+            })}
+          />
+        )}
         {selection.type === 'boneTranslate' && (
           <>
             <NumberField label="X" value={(key as Suwol2DTranslateKey).x} onChange={(value) => setNumber('x', value)} />
@@ -3689,6 +3728,36 @@ function SelectedTimelineKeyInspector({
         )}
       </div>
     </section>
+  );
+}
+
+function InterpolationField({
+  value,
+  onChange
+}: {
+  value: Suwol2DInterpolation | undefined;
+  onChange: (value: Suwol2DInterpolation) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <label className="field-row">
+      <span>{t('timeline.interpolation')}</span>
+      <select value={normalizeInterpolation(value)} onChange={(event) => onChange(event.target.value as Suwol2DInterpolation)}>
+        {suwol2DInterpolationValues.map((interpolation) => (
+          <option key={interpolation} value={interpolation}>{t(`timeline.interpolation.${interpolation}`)}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function supportsInterpolation(type: TimelineKeySelection['type']): boolean {
+  return (
+    type === 'boneTranslate' ||
+    type === 'boneRotate' ||
+    type === 'boneScale' ||
+    type === 'slotColor' ||
+    type === 'deform'
   );
 }
 
@@ -5304,7 +5373,7 @@ function addOrReplaceSlotColorKey(timeline: Suwol2DSlotTimeline, time: number): 
     return existing;
   }
 
-  const key = { time: safeTime, r: 1, g: 1, b: 1, a: 1 };
+  const key: Suwol2DSlotColorKey = { time: safeTime, r: 1, g: 1, b: 1, a: 1, interpolation: 'linear' };
   timeline.color.push(key);
   timeline.color.sort(sortByTime);
   return key;
@@ -5406,9 +5475,10 @@ function addOrReplaceDeformKeyInTimeline(timeline: Suwol2DDeformTimeline, attach
     return existing;
   }
 
-  const key = {
+  const key: Suwol2DDeformKey = {
     time: safeTime,
-    offsets: createZeroDeformOffsets(attachment.vertices.length)
+    offsets: createZeroDeformOffsets(attachment.vertices.length),
+    interpolation: 'linear'
   };
   timeline.keys.push(key);
   timeline.keys.sort(sortByTime);

@@ -955,6 +955,112 @@ export function createTimelineUsabilitySampleDocument(images: ImportedImage[]): 
   return withDefaultSkin(document);
 }
 
+export function createInterpolationSampleDocument(images: ImportedImage[]): Suwol2DDocument {
+  const document = createTimelineUsabilitySampleDocument(images);
+  document.name = 'sample_curve_interpolation';
+
+  document.animations = document.animations.filter((animation) => animation.name === 'walk');
+  const walk = document.animations[0];
+  if (walk) {
+    walk.duration = 1.2;
+  }
+
+  document.animations.unshift({
+    name: 'idle',
+    loop: true,
+    duration: 1,
+    bones: [
+      {
+        bone: 'root',
+        translate: [
+          { time: 0, x: 0, y: 0, interpolation: 'linear' },
+          { time: 0.5, x: 0, y: 0.08, interpolation: 'easeInOut' },
+          { time: 1, x: 0, y: 0, interpolation: 'linear' }
+        ],
+        rotate: [],
+        scale: []
+      }
+    ],
+    slots: [
+      {
+        slot: 'body_slot',
+        color: [
+          { time: 0, r: 1, g: 1, b: 1, a: 1, interpolation: 'easeOut' },
+          { time: 0.5, r: 0.85, g: 1, b: 0.95, a: 1, interpolation: 'linear' },
+          { time: 1, r: 1, g: 1, b: 1, a: 1, interpolation: 'linear' }
+        ]
+      }
+    ]
+  });
+
+  document.animations.push({
+    name: 'curve_test',
+    loop: true,
+    duration: 1,
+    bones: [
+      {
+        bone: 'root',
+        translate: [
+          { time: 0, x: -0.24, y: 0, interpolation: 'linear' },
+          { time: 0.25, x: -0.08, y: 0.18, interpolation: 'easeIn' },
+          { time: 0.5, x: 0.08, y: -0.02, interpolation: 'easeOut' },
+          { time: 0.75, x: 0.24, y: 0.18, interpolation: 'easeInOut' },
+          { time: 1, x: -0.24, y: 0, interpolation: 'linear' }
+        ],
+        rotate: [],
+        scale: [
+          { time: 0, scaleX: 1, scaleY: 1, interpolation: 'linear' },
+          { time: 0.5, scaleX: 1.08, scaleY: 0.94, interpolation: 'easeOut' },
+          { time: 1, scaleX: 1, scaleY: 1, interpolation: 'linear' }
+        ]
+      },
+      {
+        bone: 'arm',
+        translate: [],
+        rotate: [
+          { time: 0, rotation: -48, interpolation: 'stepped' },
+          { time: 0.35, rotation: 48, interpolation: 'easeInOut' },
+          { time: 0.7, rotation: -28, interpolation: 'linear' },
+          { time: 1, rotation: -48, interpolation: 'linear' }
+        ],
+        scale: []
+      }
+    ],
+    slots: [
+      {
+        slot: 'body_slot',
+        color: [
+          { time: 0, r: 1, g: 1, b: 1, a: 1, interpolation: 'easeOut' },
+          { time: 0.5, r: 0.55, g: 0.92, b: 1, a: 0.72, interpolation: 'linear' },
+          { time: 1, r: 1, g: 1, b: 1, a: 1, interpolation: 'linear' }
+        ]
+      }
+    ],
+    deforms: [
+      {
+        slot: 'arm_slot',
+        attachment: 'arm_timeline_mesh',
+        keys: [
+          { time: 0, offsets: createZeroDeformOffsets(4), interpolation: 'easeInOut' },
+          {
+            time: 0.5,
+            offsets: [
+              { vertex: 0, x: -0.02, y: -0.03 },
+              { vertex: 1, x: 0.02, y: -0.03 },
+              { vertex: 2, x: 0.08, y: 0.09 },
+              { vertex: 3, x: -0.07, y: 0.07 }
+            ],
+            interpolation: 'linear'
+          },
+          { time: 1, offsets: createZeroDeformOffsets(4), interpolation: 'linear' }
+        ]
+      }
+    ]
+  });
+
+  return withDefaultSkin(document);
+}
+
 function createZeroDeformOffsets(vertexCount: number): Suwol2DVertexOffset[] {
   return Array.from({ length: vertexCount }, (_, vertex) => ({ vertex, x: 0, y: 0 }));
 }

@@ -73,9 +73,9 @@ namespace Suwol.Suwol2D
                     continue;
                 }
 
-                var t = Mathf.Approximately(previous.time, next.time)
-                    ? 1f
-                    : Mathf.Clamp01((time - previous.time) / (next.time - previous.time));
+                var t = Suwol2DInterpolation.Apply(
+                    previous.interpolation,
+                    Suwol2DInterpolation.InverseLerpClamped(previous.time, next.time, time));
                 return Color.Lerp(ToColor(previous), ToColor(next), t);
             }
 

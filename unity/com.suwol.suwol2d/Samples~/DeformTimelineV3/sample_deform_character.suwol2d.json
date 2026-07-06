@@ -441,17 +441,20 @@
             {
               "time": 0,
               "x": 0,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
               "x": 0,
-              "y": 0.12
+              "y": 0.12,
+              "interpolation": "linear"
             },
             {
               "time": 1,
               "x": 0,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             }
           ],
           "rotate": [],
@@ -463,15 +466,18 @@
           "rotate": [
             {
               "time": 0,
-              "rotation": -16
+              "rotation": -16,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
-              "rotation": -4
+              "rotation": -4,
+              "interpolation": "linear"
             },
             {
               "time": 1,
-              "rotation": -16
+              "rotation": -16,
+              "interpolation": "linear"
             }
           ],
           "scale": []
@@ -525,7 +531,8 @@
                   "x": 0,
                   "y": 0
                 }
-              ]
+              ],
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
@@ -560,7 +567,8 @@
                   "x": 0,
                   "y": 0.025
                 }
-              ]
+              ],
+              "interpolation": "linear"
             },
             {
               "time": 1,
@@ -605,7 +613,8 @@
                   "x": 0,
                   "y": 0
                 }
-              ]
+              ],
+              "interpolation": "linear"
             }
           ]
         }
@@ -621,15 +630,18 @@
           "rotate": [
             {
               "time": 0,
-              "rotation": -35
+              "rotation": -35,
+              "interpolation": "linear"
             },
             {
               "time": 0.25,
-              "rotation": 25
+              "rotation": 25,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
-              "rotation": -35
+              "rotation": -35,
+              "interpolation": "linear"
             }
           ],
           "scale": []
@@ -640,15 +652,18 @@
           "rotate": [
             {
               "time": 0,
-              "rotation": -45
+              "rotation": -45,
+              "interpolation": "linear"
             },
             {
               "time": 0.25,
-              "rotation": 50
+              "rotation": 50,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
-              "rotation": -45
+              "rotation": -45,
+              "interpolation": "linear"
             }
           ],
           "scale": []
@@ -692,7 +707,8 @@
                   "x": -0.025,
                   "y": 0.025
                 }
-              ]
+              ],
+              "interpolation": "linear"
             },
             {
               "time": 0.25,
@@ -727,7 +743,8 @@
                   "x": 0.025,
                   "y": -0.025
                 }
-              ]
+              ],
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
@@ -762,7 +779,8 @@
                   "x": -0.025,
                   "y": 0.025
                 }
-              ]
+              ],
+              "interpolation": "linear"
             }
           ]
         }

@@ -10,6 +10,7 @@ const {
   createAnimationTimelinesSampleDocument,
   createDeformSampleDocument,
   createIkSampleDocument,
+  createInterpolationSampleDocument,
   createMeshSampleDocument,
   createSampleDocument,
   createSkinSampleDocument,
@@ -20,6 +21,8 @@ const { createUnityRuntimeExport } = await import('../src/shared/export-suwol2d.
 const { packAtlasImages } = await import('../src/main/atlas/atlas-packer.ts');
 const { suwolReleaseInfo } = await import('../src/shared/release-info.ts');
 const { validateDocument } = await import('../src/shared/validation.ts');
+
+const supportedInterpolations = new Set(['stepped', 'linear', 'easeIn', 'easeOut', 'easeInOut']);
 
 const importedImages = [
   {
@@ -178,6 +181,23 @@ await validateSuwol2DPair({
   textureNames: ['body.png', 'arm.png', 'sword.png', 'axe.png']
 });
 
+const interpolationExport = await validateSamplePair({
+  label: 'curve interpolation sample',
+  document: createInterpolationSampleDocument(importedImages),
+  samplePath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'CurveInterpolationV20', 'sample_curve_interpolation.suwol2d.json'),
+  expectedAttachmentTypes: ['region', 'mesh'],
+  expectedAnimationNames: ['idle', 'walk', 'curve_test'],
+  expectedTextureNames: ['body.png', 'arm.png', 'sword.png', 'axe.png'],
+  compareExportToSample: true
+});
+validateInterpolationSample(interpolationExport);
+await validateSuwol2DPair({
+  samplePath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'CurveInterpolationV20', 'sample_curve_interpolation.suwol2d'),
+  debugJsonPath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'CurveInterpolationV20', 'sample_curve_interpolation.suwol2d.json'),
+  texturesPath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'CurveInterpolationV20', 'Textures'),
+  textureNames: ['body.png', 'arm.png', 'sword.png', 'axe.png']
+});
+
 const atlasPack = packAtlasImages(
   importedImages.slice(0, 2).map((image) => ({
     name: image.name,
@@ -251,6 +271,7 @@ for (const field of [
   'public Suwol2DTranslateKey[] translate',
   'public Suwol2DRotateKey[] rotate',
   'public Suwol2DScaleKey[] scale',
+  'public string interpolation',
   'public sealed class Suwol2DVertexOffsetData',
   'public sealed class Suwol2DDeformKeyData',
   'public sealed class Suwol2DDeformTimelineData',
@@ -278,6 +299,14 @@ for (const field of [
   'public bool boolValue'
 ]) {
   assert.ok(dataModel.includes(field), `C# data model is missing field declaration: ${field}`);
+}
+
+const unityInterpolationRuntime = await readFile(
+  join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Runtime', 'Animation', 'Suwol2DInterpolation.cs'),
+  'utf8'
+);
+for (const field of ['public static class Suwol2DInterpolation', 'Normalize(string interpolation)', 'Apply(string interpolation, float t)', 'LerpAngleShortest']) {
+  assert.ok(unityInterpolationRuntime.includes(field), `Suwol2DInterpolation is missing expected API: ${field}`);
 }
 
 const characterRuntime = await readFile(
@@ -322,7 +351,8 @@ for (const field of [
   'ValidateStateMachines',
   'ValidateAtlases',
   'CollectAtlasImageNames',
-  'SetStateMachineSummary'
+  'SetStateMachineSummary',
+  'SetInterpolationSummary'
 ]) {
   assert.ok(importerRuntime.includes(field), `Suwol2D importer is missing expected implementation marker: ${field}`);
 }
@@ -371,7 +401,7 @@ const unitySmokeHelper = await readFile(
   join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Editor', 'Tests', 'Suwol2DRuntimeSmokeTests.cs'),
   'utf8'
 );
-for (const field of ['RunAll', 'ValidateImporterReimportRecovery', 'ValidateMalformedRuntimeJson', 'ValidateAnimationMixingStateMachineApi', 'ValidateAtlasLookupApi', 'Renderer view count']) {
+for (const field of ['RunAll', 'ValidateImporterReimportRecovery', 'ValidateMalformedRuntimeJson', 'ValidateAnimationMixingStateMachineApi', 'ValidateAtlasLookupApi', 'ValidateCurveInterpolationApi', 'Renderer view count']) {
   assert.ok(unitySmokeHelper.includes(field), `Unity smoke helper is missing expected v9 marker: ${field}`);
 }
 
@@ -388,6 +418,7 @@ console.log(`- animation timelines sample: ${animationTimelinesExport.animations
 console.log(`- animation mixing state machine sample: ${animationMixingStateMachineExport.stateMachines.map((machine) => machine.name).join(', ')}`);
 console.log(`- timeline usability sample durations: ${timelineUsabilityExport.animations.map((animation) => animation.duration).join(', ')}`);
 console.log(`- atlas sample regions: ${atlasPack.atlas.regions.map((region) => region.name).join(', ')}`);
+console.log(`- curve interpolation sample presets: ${collectInterpolationValues(interpolationExport).join(', ')}`);
 
 async function validateAllUnityPackageSamples() {
   const samplesRoot = join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~');
@@ -395,8 +426,8 @@ async function validateAllUnityPackageSamples() {
   const jsonFiles = files.filter((file) => file.endsWith('.suwol2d.json'));
   const suwol2dFiles = files.filter((file) => file.endsWith('.suwol2d'));
 
-  assert.ok(jsonFiles.length >= 10, 'Unity package should include all v0-v11 .suwol2d.json samples.');
-  assert.ok(suwol2dFiles.length >= 4, 'Unity package should include importer .suwol2d samples.');
+  assert.ok(jsonFiles.length >= 11, 'Unity package should include all v0-v20 .suwol2d.json samples.');
+  assert.ok(suwol2dFiles.length >= 5, 'Unity package should include importer .suwol2d samples.');
 
   for (const jsonFile of jsonFiles) {
     const document = JSON.parse(await readFile(jsonFile, 'utf8'));
@@ -482,6 +513,7 @@ async function validateReleaseReadinessMetadata() {
     'docs/hotfix-candidates-0.12.1.md',
     'docs/localization-i18n-v15.md',
     'docs/atlas-packing-texture-atlas-v17.md',
+    'docs/curve-interpolation-editor-v20.md',
     'src/shared/i18n/types.ts',
     'src/shared/i18n/locales.ts',
     'src/shared/i18n/translate.ts',
@@ -492,6 +524,7 @@ async function validateReleaseReadinessMetadata() {
     'src/renderer/src/i18n/useI18n.ts',
     'unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md',
     'unity/com.suwol.suwol2d/Documentation~/atlas-packing-texture-atlas-v17.md',
+    'unity/com.suwol.suwol2d/Documentation~/curve-interpolation-editor-v20.md',
     'scripts/generate-icons.mjs',
     'scripts/create-checksums.mjs',
     'scripts/zip-unity-package.mjs',
@@ -515,6 +548,7 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(rootReadme.includes('npm.cmd run verify:locales'), 'README should document locale verification command.');
   assert.ok(rootReadme.includes('docs/localization-i18n-v15.md'), 'README should link v15 localization docs.');
   assert.ok(rootReadme.includes('docs/atlas-packing-texture-atlas-v17.md'), 'README should link v17 atlas docs.');
+  assert.ok(rootReadme.includes('docs/curve-interpolation-editor-v20.md'), 'README should link v20 curve interpolation docs.');
   assert.ok(rootReadme.includes('Optional PNG texture atlas export'), 'README should document atlas export support.');
   assert.ok(rootReadme.includes('npm.cmd run release:unity-package'), 'README should document Unity package zip command.');
   assert.ok(rootReadme.includes('docs/manual-qa-dogfooding-v13.md'), 'README should link v13 manual QA docs.');
@@ -531,6 +565,8 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(manualQaDogfooding.includes('checksums-linux-x64.txt'), 'Manual QA docs should include Linux checksum checks.');
   assert.ok(unityDocsIndex.includes('atlas-packing-texture-atlas-v17.md'), 'Unity docs index should link v17 atlas docs.');
   assert.ok(unityDocsIndex.includes('Optional texture atlas UV lookup'), 'Unity docs index should document atlas UV lookup.');
+  assert.ok(unityDocsIndex.includes('curve-interpolation-editor-v20.md'), 'Unity docs index should link v20 curve interpolation docs.');
+  assert.ok(unityDocsIndex.includes('Keyframe interpolation presets'), 'Unity docs index should document interpolation presets.');
   for (const workflowMarker of [
     'name: Release Linux ZIP',
     'workflow_dispatch:',
@@ -654,9 +690,9 @@ async function validateGenericRuntimeDocument(document, label, filePath) {
     assert.ok(Array.isArray(animation.bones), `${label} animation bones should be an array`);
     for (const timeline of animation.bones) {
       assert.ok(boneNames.has(timeline.bone), `${label} animation timeline should reference an existing bone: ${timeline.bone}`);
-      validateKeyList(timeline.translate ?? [], ['time', 'x', 'y'], `${label} ${animation.name}/${timeline.bone}/translate`);
-      validateKeyList(timeline.rotate ?? [], ['time', 'rotation'], `${label} ${animation.name}/${timeline.bone}/rotate`);
-      validateKeyList(timeline.scale ?? [], ['time', 'scaleX', 'scaleY'], `${label} ${animation.name}/${timeline.bone}/scale`);
+      validateKeyList(timeline.translate ?? [], ['time', 'x', 'y', 'interpolation'], `${label} ${animation.name}/${timeline.bone}/translate`, { requireInterpolation: true });
+      validateKeyList(timeline.rotate ?? [], ['time', 'rotation', 'interpolation'], `${label} ${animation.name}/${timeline.bone}/rotate`, { requireInterpolation: true });
+      validateKeyList(timeline.scale ?? [], ['time', 'scaleX', 'scaleY', 'interpolation'], `${label} ${animation.name}/${timeline.bone}/scale`, { requireInterpolation: true });
     }
 
     if ((animation.deforms ?? []).length > 0) {
@@ -898,9 +934,9 @@ function validateRuntimeDocument(
 
     for (const timeline of animation.bones) {
       expectExactKeys(timeline, ['bone', 'translate', 'rotate', 'scale'], `${label} bone timeline`);
-      validateKeyList(timeline.translate, ['time', 'x', 'y'], `${label} ${animation.name}/${timeline.bone}/translate`);
-      validateKeyList(timeline.rotate, ['time', 'rotation'], `${label} ${animation.name}/${timeline.bone}/rotate`);
-      validateKeyList(timeline.scale, ['time', 'scaleX', 'scaleY'], `${label} ${animation.name}/${timeline.bone}/scale`);
+      validateKeyList(timeline.translate, ['time', 'x', 'y', 'interpolation'], `${label} ${animation.name}/${timeline.bone}/translate`, { requireInterpolation: true });
+      validateKeyList(timeline.rotate, ['time', 'rotation', 'interpolation'], `${label} ${animation.name}/${timeline.bone}/rotate`, { requireInterpolation: true });
+      validateKeyList(timeline.scale, ['time', 'scaleX', 'scaleY', 'interpolation'], `${label} ${animation.name}/${timeline.bone}/scale`, { requireInterpolation: true });
     }
 
     if (Object.hasOwn(animation, 'deforms')) {
@@ -1208,9 +1244,10 @@ function validateDeformTimelines(deforms, document, label) {
     let previousTime = -Infinity;
     const seenTimes = new Set();
     for (const key of deform.keys) {
-      expectExactKeys(key, ['time', 'offsets'], `${label} deform key`);
+      expectExactKeys(key, ['time', 'offsets', 'interpolation'], `${label} deform key`);
       assert.ok(Number.isFinite(key.time), `${label} deform key time should be finite`);
       assert.ok(key.time >= 0, `${label} deform key time should be non-negative`);
+      validateInterpolationValue(key.interpolation, `${label} deform key`);
       assert.ok(key.time >= previousTime, `${label} deform keys should be sorted`);
       previousTime = key.time;
       assert.ok(!seenTimes.has(key.time), `${label} deform key time should not be duplicated`);
@@ -1280,7 +1317,7 @@ function validateSlotColorTimelines(timelines, document, label) {
   for (const timeline of timelines) {
     expectExactKeys(timeline, ['slot', 'color'], `${label} slot color timeline`);
     assert.ok(slotNames.has(timeline.slot), `${label} slot color timeline slot should exist`);
-    validateKeyList(timeline.color, ['time', 'r', 'g', 'b', 'a'], `${label} slot color keys`);
+    validateKeyList(timeline.color, ['time', 'r', 'g', 'b', 'a', 'interpolation'], `${label} slot color keys`, { requireInterpolation: true });
     for (const key of timeline.color) {
       for (const field of ['r', 'g', 'b', 'a']) {
         assert.ok(key[field] >= 0 && key[field] <= 1, `${label} ${field} should be in 0..1`);
@@ -1298,6 +1335,37 @@ function validateEventTimeline(events, label) {
   }
 }
 
+function validateInterpolationSample(document) {
+  const values = new Set(collectInterpolationValues(document));
+  for (const interpolation of supportedInterpolations) {
+    assert.ok(values.has(interpolation), `curve interpolation sample should include ${interpolation}`);
+  }
+
+  const curveTest = document.animations.find((animation) => animation.name === 'curve_test');
+  assert.ok(curveTest, 'curve interpolation sample should include curve_test animation.');
+  assert.equal(curveTest.duration, 1, 'curve_test should export explicit duration.');
+  assert.ok((curveTest.deforms ?? []).length > 0, 'curve_test should include deform interpolation keys.');
+  assert.ok((curveTest.slots ?? []).length > 0, 'curve_test should include slot color interpolation keys.');
+}
+
+function collectInterpolationValues(document) {
+  const values = [];
+  for (const animation of document.animations ?? []) {
+    for (const timeline of animation.bones ?? []) {
+      for (const key of timeline.translate ?? []) values.push(key.interpolation);
+      for (const key of timeline.rotate ?? []) values.push(key.interpolation);
+      for (const key of timeline.scale ?? []) values.push(key.interpolation);
+    }
+    for (const timeline of animation.deforms ?? []) {
+      for (const key of timeline.keys ?? []) values.push(key.interpolation);
+    }
+    for (const timeline of animation.slots ?? []) {
+      for (const key of timeline.color ?? []) values.push(key.interpolation);
+    }
+  }
+  return [...new Set(values)].filter(Boolean).sort();
+}
+
 function validateKeyList(keys, fields, label, options = {}) {
   assert.ok(Array.isArray(keys), `${label} should be an array`);
   let previousTime = -Infinity;
@@ -1306,12 +1374,25 @@ function validateKeyList(keys, fields, label, options = {}) {
     assert.ok(Number.isFinite(key.time), `${label} time should be finite`);
     assert.ok(key.time >= previousTime, `${label} key times should be sorted`);
     previousTime = key.time;
-    const numericFields = fields.filter((field) => field !== 'name' && field !== 'attachment' && field !== 'stringValue');
+    if (options.requireInterpolation) {
+      validateInterpolationValue(key.interpolation, label);
+    }
+    const numericFields = fields.filter((field) => (
+      field !== 'name' &&
+      field !== 'attachment' &&
+      field !== 'stringValue' &&
+      field !== 'interpolation'
+    ));
     assertFiniteNumbers(key, numericFields, label);
     if (fields.includes('attachment') && !options.allowNullAttachment) {
       assert.equal(typeof key.attachment, 'string', `${label} attachment should be a string`);
     }
   }
+}
+
+function validateInterpolationValue(value, label) {
+  assert.equal(typeof value, 'string', `${label} interpolation should be a string`);
+  assert.ok(supportedInterpolations.has(value), `${label} interpolation should be supported: ${value}`);
 }
 
 function assertFiniteNumbers(object, fields, label) {

@@ -183,17 +183,20 @@
             {
               "time": 0,
               "x": 0,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
               "x": 0,
-              "y": 0.08
+              "y": 0.08,
+              "interpolation": "linear"
             },
             {
               "time": 1,
               "x": 0,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             }
           ],
           "rotate": [],
@@ -205,15 +208,18 @@
           "rotate": [
             {
               "time": 0,
-              "rotation": -3
+              "rotation": -3,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
-              "rotation": 3
+              "rotation": 3,
+              "interpolation": "linear"
             },
             {
               "time": 1,
-              "rotation": -3
+              "rotation": -3,
+              "interpolation": "linear"
             }
           ],
           "scale": []
@@ -224,15 +230,18 @@
           "rotate": [
             {
               "time": 0,
-              "rotation": -14
+              "rotation": -14,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
-              "rotation": -4
+              "rotation": -4,
+              "interpolation": "linear"
             },
             {
               "time": 1,
-              "rotation": -14
+              "rotation": -14,
+              "interpolation": "linear"
             }
           ],
           "scale": []
@@ -247,21 +256,24 @@
               "r": 1,
               "g": 1,
               "b": 1,
-              "a": 1
+              "a": 1,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
               "r": 0.88,
               "g": 1,
               "b": 0.96,
-              "a": 1
+              "a": 1,
+              "interpolation": "linear"
             },
             {
               "time": 1,
               "r": 1,
               "g": 1,
               "b": 1,
-              "a": 1
+              "a": 1,
+              "interpolation": "linear"
             }
           ]
         }
@@ -286,17 +298,20 @@
             {
               "time": 0,
               "x": -0.08,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             },
             {
               "time": 0.25,
               "x": 0.08,
-              "y": 0.08
+              "y": 0.08,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
               "x": -0.08,
-              "y": 0
+              "y": 0,
+              "interpolation": "linear"
             }
           ],
           "rotate": [],
@@ -308,15 +323,18 @@
           "rotate": [
             {
               "time": 0,
-              "rotation": -42
+              "rotation": -42,
+              "interpolation": "linear"
             },
             {
               "time": 0.25,
-              "rotation": 34
+              "rotation": 34,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
-              "rotation": -42
+              "rotation": -42,
+              "interpolation": "linear"
             }
           ],
           "scale": []
@@ -386,21 +404,24 @@
               "r": 1,
               "g": 1,
               "b": 1,
-              "a": 1
+              "a": 1,
+              "interpolation": "linear"
             },
             {
               "time": 0.25,
               "r": 1,
               "g": 0.72,
               "b": 0.72,
-              "a": 0.78
+              "a": 0.78,
+              "interpolation": "linear"
             },
             {
               "time": 0.5,
               "r": 1,
               "g": 1,
               "b": 1,
-              "a": 1
+              "a": 1,
+              "interpolation": "linear"
             }
           ]
         }
@@ -432,15 +453,18 @@
           "rotate": [
             {
               "time": 0,
-              "rotation": -70
+              "rotation": -70,
+              "interpolation": "linear"
             },
             {
               "time": 0.18,
-              "rotation": 65
+              "rotation": 65,
+              "interpolation": "linear"
             },
             {
               "time": 0.42,
-              "rotation": -24
+              "rotation": -24,
+              "interpolation": "linear"
             }
           ],
           "scale": []
@@ -493,21 +517,24 @@
               "r": 1,
               "g": 1,
               "b": 1,
-              "a": 1
+              "a": 1,
+              "interpolation": "linear"
             },
             {
               "time": 0.2,
               "r": 1,
               "g": 0.55,
               "b": 0.35,
-              "a": 0.68
+              "a": 0.68,
+              "interpolation": "linear"
             },
             {
               "time": 0.42,
               "r": 1,
               "g": 1,
               "b": 1,
-              "a": 1
+              "a": 1,
+              "interpolation": "linear"
             }
           ]
         }

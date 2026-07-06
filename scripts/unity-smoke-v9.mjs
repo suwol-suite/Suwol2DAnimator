@@ -58,7 +58,8 @@ try {
   if (
     !logText.includes('Suwol2D Runtime Stability v9 smoke tests passed.') &&
     !logText.includes('Suwol2D Runtime Stability v9 + Animation Mixing State Machine v10 smoke tests passed.') &&
-    !logText.includes('Suwol2D Runtime Stability v9 + Animation Mixing State Machine v10 + Timeline Usability v11 smoke tests passed.')
+    !logText.includes('Suwol2D Runtime Stability v9 + Animation Mixing State Machine v10 + Timeline Usability v11 smoke tests passed.') &&
+    !logText.includes('Suwol2D Runtime Stability v9 + Animation Mixing State Machine v10 + Timeline Usability v11 + Curve Interpolation v20 smoke tests passed.')
   ) {
     throw new Error(`Unity smoke did not report success.\n${tail(logText)}`);
   }

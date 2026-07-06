@@ -37,12 +37,24 @@ function resolveTranslation(dictionary: TranslationDictionary | undefined, key: 
   }
 
   let current: unknown = dictionary;
-  for (const segment of key.split('.')) {
-    if (!current || typeof current !== 'object' || !(segment in current)) {
+  const segments = key.split('.');
+  for (let index = 0; index < segments.length; index += 1) {
+    if (!current || typeof current !== 'object') {
       return undefined;
     }
 
-    current = (current as Record<string, unknown>)[segment];
+    const object = current as Record<string, unknown>;
+    const remainder = segments.slice(index).join('.');
+    if (remainder in object && typeof object[remainder] === 'string') {
+      return object[remainder];
+    }
+
+    const segment = segments[index];
+    if (!(segment in object)) {
+      return undefined;
+    }
+
+    current = object[segment];
   }
 
   return typeof current === 'string' ? current : undefined;

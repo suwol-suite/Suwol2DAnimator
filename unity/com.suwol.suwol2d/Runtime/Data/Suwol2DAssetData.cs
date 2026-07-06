@@ -154,6 +154,7 @@ namespace Suwol.Suwol2D
         public float time;
         public float x;
         public float y;
+        public string interpolation = string.Empty;
     }
 
     [Serializable]
@@ -161,6 +162,7 @@ namespace Suwol.Suwol2D
     {
         public float time;
         public float rotation;
+        public string interpolation = string.Empty;
     }
 
     [Serializable]
@@ -169,6 +171,7 @@ namespace Suwol.Suwol2D
         public float time;
         public float scaleX = 1f;
         public float scaleY = 1f;
+        public string interpolation = string.Empty;
     }
 
     [Serializable]
@@ -184,6 +187,7 @@ namespace Suwol.Suwol2D
     {
         public float time;
         public Suwol2DVertexOffsetData[] offsets = new Suwol2DVertexOffsetData[0];
+        public string interpolation = string.Empty;
     }
 
     [Serializable]
@@ -237,6 +241,7 @@ namespace Suwol.Suwol2D
         public float g = 1f;
         public float b = 1f;
         public float a = 1f;
+        public string interpolation = string.Empty;
     }
 
     [Serializable]

@@ -11,6 +11,7 @@ import type {
   Suwol2DSlotColorKey,
   Suwol2DTranslateKey
 } from '../../../../shared/suwol2d-format';
+import { interpolateFactor, lerpAngleShortest, lerpNumber } from '../../../../shared/interpolation';
 import { getEffectiveAnimationDuration } from './timeline-duration';
 
 export interface WorldBonePose extends Suwol2DBone {
@@ -118,7 +119,8 @@ export function sampleDeformOffsets(
     const previous = keys[index];
     const next = keys[index + 1];
     if (sampleTime <= next.time) {
-      return interpolateOffsets(previous, next, vertexCount, inverseLerp(previous.time, next.time, sampleTime));
+      const t = interpolateFactor(previous.interpolation, inverseLerp(previous.time, next.time, sampleTime));
+      return interpolateOffsets(previous, next, vertexCount, t);
     }
   }
 
@@ -203,12 +205,12 @@ export function sampleSlotColor(animation: Suwol2DAnimation | undefined, slotNam
     const previous = keys[index];
     const next = keys[index + 1];
     if (sampleTime <= next.time) {
-      const t = inverseLerp(previous.time, next.time, sampleTime);
+      const t = interpolateFactor(previous.interpolation, inverseLerp(previous.time, next.time, sampleTime));
       return {
-        r: lerp(previous.r, next.r, t),
-        g: lerp(previous.g, next.g, t),
-        b: lerp(previous.b, next.b, t),
-        a: lerp(previous.a, next.a, t)
+        r: lerpNumber(previous.r, next.r, t),
+        g: lerpNumber(previous.g, next.g, t),
+        b: lerpNumber(previous.b, next.b, t),
+        a: lerpNumber(previous.a, next.a, t)
       };
     }
   }
@@ -393,10 +395,10 @@ function sampleTranslate(keys: Suwol2DTranslateKey[], time: number): { x: number
     const previous = keys[index];
     const next = keys[index + 1];
     if (time <= next.time) {
-      const t = inverseLerp(previous.time, next.time, time);
+      const t = interpolateFactor(previous.interpolation, inverseLerp(previous.time, next.time, time));
       return {
-        x: lerp(previous.x, next.x, t),
-        y: lerp(previous.y, next.y, t)
+        x: lerpNumber(previous.x, next.x, t),
+        y: lerpNumber(previous.y, next.y, t)
       };
     }
   }
@@ -414,7 +416,8 @@ function sampleRotate(keys: Suwol2DRotateKey[], time: number): number | null {
     const previous = keys[index];
     const next = keys[index + 1];
     if (time <= next.time) {
-      return lerp(previous.rotation, next.rotation, inverseLerp(previous.time, next.time, time));
+      const t = interpolateFactor(previous.interpolation, inverseLerp(previous.time, next.time, time));
+      return lerpAngleShortest(previous.rotation, next.rotation, t);
     }
   }
 
@@ -431,10 +434,10 @@ function sampleScale(keys: Suwol2DScaleKey[], time: number): { scaleX: number; s
     const previous = keys[index];
     const next = keys[index + 1];
     if (time <= next.time) {
-      const t = inverseLerp(previous.time, next.time, time);
+      const t = interpolateFactor(previous.interpolation, inverseLerp(previous.time, next.time, time));
       return {
-        scaleX: lerp(previous.scaleX, next.scaleX, t),
-        scaleY: lerp(previous.scaleY, next.scaleY, t)
+        scaleX: lerpNumber(previous.scaleX, next.scaleX, t),
+        scaleY: lerpNumber(previous.scaleY, next.scaleY, t)
       };
     }
   }
@@ -486,8 +489,8 @@ function interpolateOffsets(previous: Suwol2DDeformKey, next: Suwol2DDeformKey, 
   const previousOffsets = offsetsForKey(previous, vertexCount);
   const nextOffsets = offsetsForKey(next, vertexCount);
   return previousOffsets.map((offset, index) => ({
-    x: lerp(offset.x, nextOffsets[index].x, t),
-    y: lerp(offset.y, nextOffsets[index].y, t)
+    x: lerpNumber(offset.x, nextOffsets[index].x, t),
+    y: lerpNumber(offset.y, nextOffsets[index].y, t)
   }));
 }
 

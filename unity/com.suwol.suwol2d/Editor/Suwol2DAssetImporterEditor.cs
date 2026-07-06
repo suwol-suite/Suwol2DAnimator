@@ -87,6 +87,7 @@ namespace Suwol.Suwol2D.Editor
             EditorGUILayout.LabelField("States", report.StateCount.ToString());
             EditorGUILayout.LabelField("State Transitions", report.StateTransitionCount.ToString());
             EditorGUILayout.LabelField("State Parameters", report.StateParameterCount.ToString());
+            EditorGUILayout.LabelField("Interpolation Keys", string.IsNullOrEmpty(report.InterpolationSummary) ? "None" : report.InterpolationSummary);
             EditorGUILayout.ObjectField("Generated Prefab", report.GeneratedPrefab, typeof(GameObject), false);
 
             DrawStringList("Animations", report.AnimationNames);

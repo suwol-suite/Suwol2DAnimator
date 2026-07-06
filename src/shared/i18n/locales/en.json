@@ -75,7 +75,8 @@
     "skin": "Skin Sample",
     "timelines": "Animation Timelines Sample",
     "stateMachine": "Mixing State Sample",
-    "timelineEditing": "Timeline Editing Sample"
+    "timelineEditing": "Timeline Editing Sample",
+    "interpolation": "Interpolation Sample"
   },
   "menu": {
     "file": "File",
@@ -182,6 +183,7 @@
     "timelinesSampleCreated": "Animation Timelines sample created. Try attachment, draw order, slot color, and event timelines.",
     "stateMachineSampleCreated": "Animation Mixing / State Machine sample created. Start preview and toggle moving or fire attack.",
     "timelineEditingSampleCreated": "Timeline Editing sample created. Try key list filters, copy/paste, duplicate, snap, and the selected key inspector.",
+    "interpolationSampleCreated": "Interpolation sample created. Try stepped, linear, and easing presets in the selected key inspector.",
     "createOrOpenBeforeExport": "Create or open a project before exporting.",
     "exportBlocked": "Export blocked: {{count}} error(s). Check the validation panel.",
     "exportCompleted": "Export completed: {{path}}. {{textures}}{{warnings}}",
@@ -242,7 +244,9 @@
     "atlasRegionOutOfBounds": "Atlas region '{{region}}' is outside atlas '{{atlas}}'.",
     "duplicateAtlasRegion": "Duplicate atlas region: {{region}}",
     "stateMachineMissingAnimation": "State machine '{{machine}}' state '{{state}}' references missing animation '{{animation}}'.",
-    "ikMissingBone": "IK constraint '{{constraint}}' references missing {{role}} bone '{{bone}}'."
+    "ikMissingBone": "IK constraint '{{constraint}}' references missing {{role}} bone '{{bone}}'.",
+    "invalidInterpolation": "Animation '{{animation}}' {{label}} key has unsupported interpolation '{{value}}'.",
+    "interpolationIgnoredForDiscreteTimeline": "Animation '{{animation}}' {{label}} uses interpolation on a discrete timeline and it will be ignored."
   },
   "timeline": {
     "currentTime": "Current",
@@ -258,6 +262,12 @@
     "drawOrder": "Draw Order",
     "slotColor": "Slot Color",
     "event": "Event",
+    "interpolation": "Interpolation",
+    "interpolation.stepped": "Stepped",
+    "interpolation.linear": "Linear",
+    "interpolation.easeIn": "Ease In",
+    "interpolation.easeOut": "Ease Out",
+    "interpolation.easeInOut": "Ease In-Out",
     "keys": "Keys",
     "visible": "{{count}} visible",
     "noKeys": "No keys match the current filter.",
@@ -321,7 +331,7 @@
     "supported": "Supported",
     "license": "License",
     "docs": "Docs",
-    "supportedFeatures": "region, mesh, weighted mesh, deform, IK, skins, timelines, state machine"
+    "supportedFeatures": "region, mesh, weighted mesh, deform, interpolation, IK, skins, timelines, state machine"
   },
   "inspector": {
     "document": "Document",

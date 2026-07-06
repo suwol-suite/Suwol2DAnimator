@@ -1,5 +1,6 @@
 export type Suwol2DAttachmentType = 'region' | 'mesh';
 export type Suwol2DStateParameterType = 'bool' | 'trigger';
+export type Suwol2DInterpolation = 'stepped' | 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
 
 export interface Suwol2DDocument {
   version: 0;
@@ -142,17 +143,20 @@ export interface Suwol2DTranslateKey {
   time: number;
   x: number;
   y: number;
+  interpolation?: Suwol2DInterpolation;
 }
 
 export interface Suwol2DRotateKey {
   time: number;
   rotation: number;
+  interpolation?: Suwol2DInterpolation;
 }
 
 export interface Suwol2DScaleKey {
   time: number;
   scaleX: number;
   scaleY: number;
+  interpolation?: Suwol2DInterpolation;
 }
 
 export interface Suwol2DVertexOffset {
@@ -164,6 +168,7 @@ export interface Suwol2DVertexOffset {
 export interface Suwol2DDeformKey {
   time: number;
   offsets: Suwol2DVertexOffset[];
+  interpolation?: Suwol2DInterpolation;
 }
 
 export interface Suwol2DDeformTimeline {
@@ -203,6 +208,7 @@ export interface Suwol2DSlotColorKey {
   g: number;
   b: number;
   a: number;
+  interpolation?: Suwol2DInterpolation;
 }
 
 export interface Suwol2DEventKey {

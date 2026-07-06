@@ -22,6 +22,7 @@ namespace Suwol.Suwol2D.Editor
         [SerializeField] private int stateCount;
         [SerializeField] private int stateTransitionCount;
         [SerializeField] private int stateParameterCount;
+        [SerializeField] private string interpolationSummary = string.Empty;
         [SerializeField] private string[] animationNames = new string[0];
         [SerializeField] private string[] skinNames = new string[0];
         [SerializeField] private string[] slotNames = new string[0];
@@ -48,6 +49,7 @@ namespace Suwol.Suwol2D.Editor
         public int StateCount { get { return stateCount; } }
         public int StateTransitionCount { get { return stateTransitionCount; } }
         public int StateParameterCount { get { return stateParameterCount; } }
+        public string InterpolationSummary { get { return interpolationSummary; } }
         public string[] AnimationNames { get { return animationNames; } }
         public string[] SkinNames { get { return skinNames; } }
         public string[] SlotNames { get { return slotNames; } }
@@ -109,6 +111,11 @@ namespace Suwol.Suwol2D.Editor
             this.stateCount = stateCount;
             this.stateTransitionCount = stateTransitionCount;
             this.stateParameterCount = stateParameterCount;
+        }
+
+        public void SetInterpolationSummary(string interpolationSummary)
+        {
+            this.interpolationSummary = interpolationSummary ?? string.Empty;
         }
 
         public void SetTextures(string[] textureNames, string[] missingTextureNames)
