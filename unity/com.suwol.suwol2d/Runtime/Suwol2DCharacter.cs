@@ -20,6 +20,7 @@ namespace Suwol.Suwol2D
         private readonly Dictionary<string, string> attachmentOverrides = new Dictionary<string, string>();
         private readonly Dictionary<string, int> drawOrders = new Dictionary<string, int>();
         private readonly Dictionary<string, Color> slotColors = new Dictionary<string, Color>();
+        private readonly Suwol2DClippingContext clippingContext = new Suwol2DClippingContext();
         private readonly Suwol2DEventTimelineDispatcher eventDispatcher = new Suwol2DEventTimelineDispatcher();
         private Suwol2DSkeleton skeleton;
         private Suwol2DSkinResolver skinResolver;
@@ -458,6 +459,9 @@ namespace Suwol.Suwol2D
             meshAttachmentRenderer.ApplyDrawOrder(drawOrders);
             regionRenderer.ApplySlotColors(slotColors);
             meshAttachmentRenderer.ApplySlotColors(slotColors);
+            BuildClippingContext();
+            regionRenderer.ApplyClippingContext(clippingContext);
+            meshAttachmentRenderer.ApplyClippingContext(clippingContext);
             regionRenderer.UpdatePose();
             meshAttachmentRenderer.UpdatePose(animation, time, nextAnimation, nextTime, transitionWeight);
         }
@@ -489,6 +493,7 @@ namespace Suwol.Suwol2D
             attachmentOverrides.Clear();
             drawOrders.Clear();
             slotColors.Clear();
+            clippingContext.Clear();
             attachmentSignature = string.Empty;
             skeleton = null;
             skinResolver = null;
@@ -533,6 +538,116 @@ namespace Suwol.Suwol2D
             }
 
             return builder.ToString();
+        }
+
+        private void BuildClippingContext()
+        {
+            clippingContext.Clear();
+            if (skeleton == null || skinResolver == null)
+            {
+                return;
+            }
+
+            ActiveClip activeClip = null;
+            var slots = new List<Suwol2DSlot>(skeleton.Slots);
+            slots.Sort((left, right) =>
+            {
+                var leftOrder = ResolveDrawOrder(left);
+                var rightOrder = ResolveDrawOrder(right);
+                var order = leftOrder.CompareTo(rightOrder);
+                return order != 0 ? order : string.CompareOrdinal(left.Name, right.Name);
+            });
+
+            for (var i = 0; i < slots.Count; i++)
+            {
+                var slot = slots[i];
+                if (slot == null)
+                {
+                    continue;
+                }
+
+                var attachment = skinResolver.ResolveAttachment(slot);
+                if (attachment != null && attachment.IsClipping)
+                {
+                    var polygon = BuildClipPolygon(slot, attachment);
+                    activeClip = Suwol2DClipper.IsValidPolygon(polygon)
+                        ? new ActiveClip { EndSlot = attachment.EndSlot, Polygon = polygon }
+                        : null;
+                    if (activeClip != null && activeClip.EndSlot == slot.Name)
+                    {
+                        activeClip = null;
+                    }
+                    continue;
+                }
+
+                if (activeClip != null)
+                {
+                    clippingContext.SetClip(slot.Name, activeClip.Polygon);
+                    if (activeClip.EndSlot == slot.Name)
+                    {
+                        activeClip = null;
+                    }
+                }
+            }
+        }
+
+        private int ResolveDrawOrder(Suwol2DSlot slot)
+        {
+            if (slot == null)
+            {
+                return 0;
+            }
+
+            int order;
+            return drawOrders.TryGetValue(slot.Name, out order) ? order : slot.DrawOrder;
+        }
+
+        private static Vector2[] BuildClipPolygon(Suwol2DSlot slot, Suwol2DAttachment attachment)
+        {
+            if (slot == null || slot.Bone == null || attachment == null || attachment.ClippingVertices == null)
+            {
+                return new Vector2[0];
+            }
+
+            var polygon = new Vector2[attachment.ClippingVertices.Length];
+            for (var i = 0; i < attachment.ClippingVertices.Length; i++)
+            {
+                var vertex = attachment.ClippingVertices[i];
+                polygon[i] = TransformAttachmentPoint(slot, attachment, new Vector2(vertex.x, vertex.y));
+            }
+
+            return polygon;
+        }
+
+        private static Vector2 TransformAttachmentPoint(Suwol2DSlot slot, Suwol2DAttachment attachment, Vector2 localPoint)
+        {
+            var boneWorld = slot.Bone.WorldTransform;
+            var offset = new Vector2(
+                attachment.X * boneWorld.scaleX,
+                attachment.Y * boneWorld.scaleY);
+            offset = Rotate(offset, boneWorld.rotation);
+
+            var scaled = new Vector2(
+                localPoint.x * boneWorld.scaleX * attachment.ScaleX,
+                localPoint.y * boneWorld.scaleY * attachment.ScaleY);
+            var rotated = Rotate(scaled, boneWorld.rotation + attachment.Rotation);
+            return new Vector2(boneWorld.x + offset.x + rotated.x, boneWorld.y + offset.y + rotated.y);
+        }
+
+        private static Vector2 Rotate(Vector2 value, float degrees)
+        {
+            var radians = degrees * Mathf.Deg2Rad;
+            var cos = Mathf.Cos(radians);
+            var sin = Mathf.Sin(radians);
+            return new Vector2(
+                value.x * cos - value.y * sin,
+                value.x * sin + value.y * cos);
+        }
+
+        private sealed class ActiveClip
+        {
+            public string EndSlot;
+            public Vector2[] Polygon;
         }
 
         private static bool ValidateDataForRuntime(Suwol2DAssetData data, out string error)
@@ -672,7 +787,7 @@ namespace Suwol.Suwol2D
                 }
 
                 var type = string.IsNullOrEmpty(attachment.type) ? Suwol2DAttachment.RegionType : attachment.type;
-                if (type != Suwol2DAttachment.RegionType && type != Suwol2DAttachment.MeshType)
+                if (type != Suwol2DAttachment.RegionType && type != Suwol2DAttachment.MeshType && type != Suwol2DAttachment.ClippingType)
                 {
                     errors.Add("Attachment '" + attachment.name + "' has unsupported type '" + attachment.type + "'.");
                     continue;
@@ -686,6 +801,11 @@ namespace Suwol.Suwol2D
                 }
 
                 if (type == Suwol2DAttachment.MeshType && !ValidateMeshAttachmentForRuntime(attachment, boneNames, errors))
+                {
+                    continue;
+                }
+
+                if (type == Suwol2DAttachment.ClippingType && !ValidateClippingAttachmentForRuntime(attachment, slotNames, errors))
                 {
                     continue;
                 }
@@ -817,6 +937,45 @@ namespace Suwol.Suwol2D
                         valid = false;
                     }
                 }
+            }
+
+            return valid;
+        }
+
+        private static bool ValidateClippingAttachmentForRuntime(
+            Suwol2DAttachmentData attachment,
+            HashSet<string> slotNames,
+            List<string> errors)
+        {
+            var valid = true;
+            var vertices = attachment.clippingVertices ?? new Suwol2DClippingVertexData[0];
+            if (vertices.Length < 3)
+            {
+                errors.Add("Clipping attachment '" + attachment.name + "' needs at least 3 vertices.");
+                valid = false;
+            }
+
+            for (var i = 0; i < vertices.Length; i++)
+            {
+                var vertex = vertices[i];
+                if (vertex == null || !IsFinite(vertex.x) || !IsFinite(vertex.y))
+                {
+                    errors.Add("Clipping attachment '" + attachment.name + "' has a non-finite vertex.");
+                    valid = false;
+                    break;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(attachment.endSlot) && !slotNames.Contains(attachment.endSlot))
+            {
+                errors.Add("Clipping attachment '" + attachment.name + "' references missing endSlot '" + attachment.endSlot + "'.");
+                valid = false;
+            }
+
+            if (vertices.Length >= 3 && Mathf.Abs(SignedArea(vertices)) <= 0.000001f)
+            {
+                errors.Add("Clipping attachment '" + attachment.name + "' polygon has zero area.");
+                valid = false;
             }
 
             return valid;
@@ -1336,6 +1495,29 @@ namespace Suwol.Suwol2D
         private static bool IsFinite(float value)
         {
             return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        private static float SignedArea(Suwol2DClippingVertexData[] vertices)
+        {
+            if (vertices == null || vertices.Length < 3)
+            {
+                return 0f;
+            }
+
+            var area = 0f;
+            for (var i = 0; i < vertices.Length; i++)
+            {
+                var current = vertices[i];
+                var next = vertices[(i + 1) % vertices.Length];
+                if (current == null || next == null)
+                {
+                    continue;
+                }
+
+                area += current.x * next.y - next.x * current.y;
+            }
+
+            return area * 0.5f;
         }
 
         private void DispatchAnimationEvent(Suwol2DAnimationEvent animationEvent)

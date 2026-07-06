@@ -12,6 +12,8 @@ namespace Suwol.Suwol2D.Editor
         [SerializeField] private int slotsCount;
         [SerializeField] private int skinsCount;
         [SerializeField] private int attachmentsCount;
+        [SerializeField] private int clippingAttachmentCount;
+        [SerializeField] private int clippingVertexCount;
         [SerializeField] private int animationsCount;
         [SerializeField] private int ikConstraintsCount;
         [SerializeField] private int attachmentTimelineCount;
@@ -39,6 +41,8 @@ namespace Suwol.Suwol2D.Editor
         public int SlotsCount { get { return slotsCount; } }
         public int SkinsCount { get { return skinsCount; } }
         public int AttachmentsCount { get { return attachmentsCount; } }
+        public int ClippingAttachmentCount { get { return clippingAttachmentCount; } }
+        public int ClippingVertexCount { get { return clippingVertexCount; } }
         public int AnimationsCount { get { return animationsCount; } }
         public int IkConstraintsCount { get { return ikConstraintsCount; } }
         public int AttachmentTimelineCount { get { return attachmentTimelineCount; } }
@@ -116,6 +120,12 @@ namespace Suwol.Suwol2D.Editor
         public void SetInterpolationSummary(string interpolationSummary)
         {
             this.interpolationSummary = interpolationSummary ?? string.Empty;
+        }
+
+        public void SetClippingSummary(int clippingAttachmentCount, int clippingVertexCount)
+        {
+            this.clippingAttachmentCount = clippingAttachmentCount;
+            this.clippingVertexCount = clippingVertexCount;
         }
 
         public void SetTextures(string[] textureNames, string[] missingTextureNames)

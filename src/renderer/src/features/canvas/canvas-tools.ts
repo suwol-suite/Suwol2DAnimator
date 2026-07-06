@@ -1,10 +1,11 @@
-import type { Suwol2DMeshAttachment } from '../../../../shared/suwol2d-format';
+import type { Suwol2DClippingAttachment, Suwol2DMeshAttachment } from '../../../../shared/suwol2d-format';
 
 export type CanvasToolMode = 'select' | 'moveVertex' | 'weightBrush' | 'deformBrush' | 'pan';
 
 export interface CanvasVertexSelection {
   attachment: string;
   vertices: number[];
+  targetType?: 'mesh' | 'clipping';
 }
 
 export interface CanvasBrushSettings {
@@ -35,25 +36,34 @@ export function sanitizeBrushStrength(value: number): number {
 
 export function normalizeCanvasVertexSelection(
   selection: CanvasVertexSelection | null,
-  attachment: Suwol2DMeshAttachment | undefined
+  attachment: Suwol2DMeshAttachment | Suwol2DClippingAttachment | undefined
 ): CanvasVertexSelection | null {
   if (!selection || !attachment || selection.attachment !== attachment.name) {
     return null;
   }
 
+  const targetType = attachment.type === 'clipping' ? 'clipping' : 'mesh';
+  if ((selection.targetType ?? 'mesh') !== targetType) {
+    return null;
+  }
+
+  const vertexCount = attachment.type === 'clipping'
+    ? attachment.clippingVertices.length
+    : attachment.vertices.length;
   const vertices = uniqueSortedIntegers(selection.vertices)
-    .filter((vertex) => vertex >= 0 && vertex < attachment.vertices.length);
-  return vertices.length > 0 ? { attachment: selection.attachment, vertices } : null;
+    .filter((vertex) => vertex >= 0 && vertex < vertexCount);
+  return vertices.length > 0 ? { attachment: selection.attachment, vertices, targetType } : null;
 }
 
 export function updateCanvasVertexSelection(
   current: CanvasVertexSelection | null,
   attachmentName: string,
   vertex: number,
-  additive: boolean
+  additive: boolean,
+  targetType: 'mesh' | 'clipping' = 'mesh'
 ): CanvasVertexSelection | null {
-  if (!additive || current?.attachment !== attachmentName) {
-    return { attachment: attachmentName, vertices: [vertex] };
+  if (!additive || current?.attachment !== attachmentName || (current.targetType ?? 'mesh') !== targetType) {
+    return { attachment: attachmentName, vertices: [vertex], targetType };
   }
 
   const vertices = new Set(current.vertices);
@@ -64,7 +74,7 @@ export function updateCanvasVertexSelection(
   }
 
   const next = uniqueSortedIntegers([...vertices]);
-  return next.length > 0 ? { attachment: attachmentName, vertices: next } : null;
+  return next.length > 0 ? { attachment: attachmentName, vertices: next, targetType } : null;
 }
 
 function uniqueSortedIntegers(values: number[]): number[] {

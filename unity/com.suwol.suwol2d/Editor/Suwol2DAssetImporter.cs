@@ -108,6 +108,7 @@ namespace Suwol.Suwol2D.Editor
                 CountStateMachineTransitions(data),
                 CountStateMachineParameters(data));
             report.SetInterpolationSummary(CollectInterpolationSummary(data));
+            report.SetClippingSummary(CountClippingAttachments(data), CountClippingVertices(data));
         }
 
         private static void ValidateData(Suwol2DAssetData data, List<string> warnings, List<string> errors)
@@ -167,6 +168,7 @@ namespace Suwol.Suwol2D.Editor
             }
 
             var slotNames = new HashSet<string>();
+            var slotDrawOrders = new Dictionary<string, int>();
             if (data.slots != null)
             {
                 for (var i = 0; i < data.slots.Length; i++)
@@ -187,6 +189,8 @@ namespace Suwol.Suwol2D.Editor
                     {
                         errors.Add("Slot '" + slot.name + "' references missing bone '" + slot.bone + "'.");
                     }
+
+                    slotDrawOrders[slot.name] = slot.drawOrder;
                 }
             }
 
@@ -248,7 +252,7 @@ namespace Suwol.Suwol2D.Editor
                 }
 
                 var type = string.IsNullOrEmpty(attachment.type) ? Suwol2DAttachment.RegionType : attachment.type;
-                if (type != Suwol2DAttachment.RegionType && type != Suwol2DAttachment.MeshType)
+                if (type != Suwol2DAttachment.RegionType && type != Suwol2DAttachment.MeshType && type != Suwol2DAttachment.ClippingType)
                 {
                     errors.Add("Attachment '" + attachment.name + "' has unsupported type '" + attachment.type + "'.");
                     continue;
@@ -257,6 +261,11 @@ namespace Suwol.Suwol2D.Editor
                 if (type == Suwol2DAttachment.MeshType)
                 {
                     ValidateMeshAttachment(attachment, boneNames, warnings, errors);
+                }
+
+                if (type == Suwol2DAttachment.ClippingType)
+                {
+                    ValidateClippingAttachment(attachment, slotNames, slotDrawOrders, warnings, errors);
                 }
 
                 if (!IsFinite(attachment.x) || !IsFinite(attachment.y) || !IsFinite(attachment.rotation) ||
@@ -711,6 +720,59 @@ namespace Suwol.Suwol2D.Editor
             }
         }
 
+        private static void ValidateClippingAttachment(
+            Suwol2DAttachmentData attachment,
+            HashSet<string> slotNames,
+            Dictionary<string, int> slotDrawOrders,
+            List<string> warnings,
+            List<string> errors)
+        {
+            var vertices = attachment.clippingVertices ?? new Suwol2DClippingVertexData[0];
+            if (vertices.Length < 3)
+            {
+                errors.Add("Clipping attachment '" + attachment.name + "' needs at least 3 vertices.");
+            }
+
+            for (var i = 0; i < vertices.Length; i++)
+            {
+                var vertex = vertices[i];
+                if (vertex == null || !IsFinite(vertex.x) || !IsFinite(vertex.y))
+                {
+                    errors.Add("Clipping attachment '" + attachment.name + "' has a non-finite vertex.");
+                    break;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(attachment.endSlot) && !slotNames.Contains(attachment.endSlot))
+            {
+                errors.Add("Clipping attachment '" + attachment.name + "' references missing endSlot '" + attachment.endSlot + "'.");
+            }
+            else if (!string.IsNullOrEmpty(attachment.endSlot) && slotDrawOrders != null)
+            {
+                int startOrder;
+                int endOrder;
+                if (slotDrawOrders.TryGetValue(attachment.slot, out startOrder) &&
+                    slotDrawOrders.TryGetValue(attachment.endSlot, out endOrder) &&
+                    endOrder < startOrder)
+                {
+                    warnings.Add("Clipping attachment '" + attachment.name + "' ends before its starting slot.");
+                }
+            }
+
+            if (vertices.Length >= 3)
+            {
+                var area = SignedArea(vertices);
+                if (Mathf.Abs(area) <= 0.000001f)
+                {
+                    errors.Add("Clipping attachment '" + attachment.name + "' polygon has zero area.");
+                }
+                else if (!IsConvex(vertices))
+                {
+                    warnings.Add("Clipping attachment '" + attachment.name + "' is concave; v21 officially supports convex polygons only.");
+                }
+            }
+        }
+
         private static void ValidateDeforms(
             Suwol2DAssetData data,
             Dictionary<string, List<Suwol2DAttachmentData>> attachmentsByName,
@@ -1112,6 +1174,69 @@ namespace Suwol.Suwol2D.Editor
             return IsFinite(value) && value >= 0f && value <= 1f;
         }
 
+        private static float SignedArea(Suwol2DClippingVertexData[] vertices)
+        {
+            if (vertices == null || vertices.Length < 3)
+            {
+                return 0f;
+            }
+
+            var area = 0f;
+            for (var i = 0; i < vertices.Length; i++)
+            {
+                var current = vertices[i];
+                var next = vertices[(i + 1) % vertices.Length];
+                if (current == null || next == null)
+                {
+                    continue;
+                }
+
+                area += (current.x * next.y) - (next.x * current.y);
+            }
+
+            return area * 0.5f;
+        }
+
+        private static bool IsConvex(Suwol2DClippingVertexData[] vertices)
+        {
+            if (vertices == null || vertices.Length < 4)
+            {
+                return true;
+            }
+
+            var sign = 0f;
+            for (var i = 0; i < vertices.Length; i++)
+            {
+                var previous = vertices[i];
+                var current = vertices[(i + 1) % vertices.Length];
+                var next = vertices[(i + 2) % vertices.Length];
+                if (previous == null || current == null || next == null)
+                {
+                    return false;
+                }
+
+                var cross = ((current.x - previous.x) * (next.y - current.y)) -
+                    ((current.y - previous.y) * (next.x - current.x));
+                if (Mathf.Abs(cross) <= 0.000001f)
+                {
+                    continue;
+                }
+
+                if (Mathf.Approximately(sign, 0f))
+                {
+                    sign = Mathf.Sign(cross);
+                    continue;
+                }
+
+                if (Mathf.Sign(cross) != sign)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private static Texture2D[] FindTextures(AssetImportContext ctx, Suwol2DAssetData data, List<string> warnings, Suwol2DImportReport report)
         {
             var foundTextures = new List<Texture2D>();
@@ -1315,6 +1440,37 @@ namespace Suwol.Suwol2D.Editor
         private static int CountAttachments(Suwol2DAssetData data)
         {
             return CollectAttachments(data).Count;
+        }
+
+        private static int CountClippingAttachments(Suwol2DAssetData data)
+        {
+            var count = 0;
+            var attachments = CollectAttachments(data);
+            for (var i = 0; i < attachments.Count; i++)
+            {
+                if (attachments[i] != null && attachments[i].type == Suwol2DAttachment.ClippingType)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private static int CountClippingVertices(Suwol2DAssetData data)
+        {
+            var count = 0;
+            var attachments = CollectAttachments(data);
+            for (var i = 0; i < attachments.Count; i++)
+            {
+                var attachment = attachments[i];
+                if (attachment != null && attachment.type == Suwol2DAttachment.ClippingType && attachment.clippingVertices != null)
+                {
+                    count += attachment.clippingVertices.Length;
+                }
+            }
+
+            return count;
         }
 
         private static int CountAttachmentTimelines(Suwol2DAssetData data)

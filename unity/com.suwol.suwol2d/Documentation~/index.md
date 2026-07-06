@@ -35,6 +35,7 @@ Suwol 2D Animator Electron editor.
 - Simple bool/trigger state machines
 - Explicit animation duration exported by the editor
 - Optional texture atlas UV lookup with individual texture fallback
+- Convex polygon clipping attachments
 
 ## Samples
 
@@ -49,6 +50,7 @@ Suwol 2D Animator Electron editor.
 - Animation Mixing State Machine v10: `Samples~/AnimationMixingStateMachineV10`
 - Timeline Usability v11: `Samples~/TimelineUsabilityV11`
 - Curve Interpolation v20: `Samples~/CurveInterpolationV20`
+- Clipping Mask v21: `Samples~/ClippingMaskV21`
 
 ## API Overview
 
@@ -64,7 +66,7 @@ skin switching, slot attachment overrides, and animation event callbacks.
 ## Limitations
 
 - No Spine compatibility or Spine runtime integration.
-- No clipping runtime.
+- Convex clipping polygons only; concave masks are not supported.
 - No rotated, trimmed, or multi-page atlas runtime.
 - No blend tree, additive animation, or animation layer system.
 - No physics, audio, telemetry, licensing, payment, or cloud login system.
@@ -93,3 +95,4 @@ skin switching, slot attachment overrides, and animation event callbacks.
 - `packaging-release-readiness-v12.md`
 - `atlas-packing-texture-atlas-v17.md`
 - `curve-interpolation-editor-v20.md`
+- `clipping-mask-v21.md`

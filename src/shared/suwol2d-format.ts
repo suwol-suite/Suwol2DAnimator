@@ -1,4 +1,4 @@
-export type Suwol2DAttachmentType = 'region' | 'mesh';
+export type Suwol2DAttachmentType = 'region' | 'mesh' | 'clipping';
 export type Suwol2DStateParameterType = 'bool' | 'trigger';
 export type Suwol2DInterpolation = 'stepped' | 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
 
@@ -76,13 +76,12 @@ export interface Suwol2DSkin {
   attachments: Suwol2DAttachment[];
 }
 
-export type Suwol2DAttachment = Suwol2DRegionAttachment | Suwol2DMeshAttachment;
+export type Suwol2DAttachment = Suwol2DRegionAttachment | Suwol2DMeshAttachment | Suwol2DClippingAttachment;
 
 export interface Suwol2DBaseAttachment {
   name: string;
   slot: string;
   type: Suwol2DAttachmentType;
-  image: string;
   x: number;
   y: number;
   rotation: number;
@@ -92,15 +91,28 @@ export interface Suwol2DBaseAttachment {
 
 export interface Suwol2DRegionAttachment extends Suwol2DBaseAttachment {
   type: 'region';
+  image: string;
   width: number;
   height: number;
 }
 
 export interface Suwol2DMeshAttachment extends Suwol2DBaseAttachment {
   type: 'mesh';
+  image: string;
   vertices: Suwol2DMeshVertex[];
   triangles: number[];
   weights?: Suwol2DVertexWeight[];
+}
+
+export interface Suwol2DClippingAttachment extends Suwol2DBaseAttachment {
+  type: 'clipping';
+  endSlot?: string | null;
+  clippingVertices: Suwol2DClippingVertex[];
+}
+
+export interface Suwol2DClippingVertex {
+  x: number;
+  y: number;
 }
 
 export interface Suwol2DMeshVertex {

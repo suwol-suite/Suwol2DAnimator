@@ -44,11 +44,12 @@ under `unity/com.suwol.suwol2d/`.
 - Keyframe interpolation presets for transform, slot color, and deform timelines
 - Canvas vertex selection/move plus weight and deform brush editing
 - Optional PNG texture atlas export with Unity atlas UV fallback
+- Convex polygon clipping attachments and masks
 
 Out of scope for this release: Spine import/export/runtime compatibility,
-clipping, rotated/trimmed/multi-page atlases, custom bezier handles, graph curve
-editing, animation layers, blend trees, additive animation, telemetry,
-Windows/macOS auto-updaters, and
+concave clipping, rotated/trimmed/multi-page atlases, custom bezier handles,
+graph curve editing, animation layers, blend trees, additive animation,
+telemetry, Windows/macOS auto-updaters, and
 licensing/payment systems.
 
 ## Install And Run
@@ -280,6 +281,11 @@ Atlas export is optional. Existing individual texture export remains the
 fallback path, and Unity uses atlas regions only when an attachment image name
 matches a region in the `.suwol2d` `atlases` array.
 
+Clipping export uses `type: "clipping"` and `clippingVertices`. v21 supports
+convex polygon masks only. A clipping attachment masks subsequent draw-order
+slots through `endSlot`, or through the end of draw order when `endSlot` is not
+set.
+
 ## Linux ZIP Auto Update
 
 Linux ZIP builds can check public GitHub Releases for
@@ -307,10 +313,12 @@ runs include the ZIP, `checksums-linux-x64.txt`, and
 - `docs/atlas-qa-results-v18.md`
 - `docs/linux-zip-auto-update-v19.md`
 - `docs/curve-interpolation-editor-v20.md`
+- `docs/clipping-mask-v21.md`
 - `unity/com.suwol.suwol2d/Documentation~/index.md`
 - `unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md`
 - `unity/com.suwol.suwol2d/Documentation~/atlas-packing-texture-atlas-v17.md`
 - `unity/com.suwol.suwol2d/Documentation~/curve-interpolation-editor-v20.md`
+- `unity/com.suwol.suwol2d/Documentation~/clipping-mask-v21.md`
 
 ## License
 

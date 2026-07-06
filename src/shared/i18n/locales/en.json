@@ -76,7 +76,8 @@
     "timelines": "Animation Timelines Sample",
     "stateMachine": "Mixing State Sample",
     "timelineEditing": "Timeline Editing Sample",
-    "interpolation": "Interpolation Sample"
+    "interpolation": "Interpolation Sample",
+    "clipping": "Clipping Sample"
   },
   "menu": {
     "file": "File",
@@ -160,7 +161,8 @@
     "vertex": {
       "selected": "{{count}} vertex selected",
       "activeMesh": "Mesh: {{name}}",
-      "noMeshSelected": "Select a mesh attachment before using canvas editing."
+      "noMeshSelected": "Select a mesh attachment before using canvas editing.",
+      "selectedClipping": "{{count}} clipping vertex selected"
     },
     "deform": {
       "noAnimationSelected": "Select an animation before painting deform offsets.",
@@ -184,6 +186,7 @@
     "stateMachineSampleCreated": "Animation Mixing / State Machine sample created. Start preview and toggle moving or fire attack.",
     "timelineEditingSampleCreated": "Timeline Editing sample created. Try key list filters, copy/paste, duplicate, snap, and the selected key inspector.",
     "interpolationSampleCreated": "Interpolation sample created. Try stepped, linear, and easing presets in the selected key inspector.",
+    "clippingSampleCreated": "Clipping sample created. Move clipping vertices on the canvas and toggle the mask with attachment keys.",
     "createOrOpenBeforeExport": "Create or open a project before exporting.",
     "exportBlocked": "Export blocked: {{count}} error(s). Check the validation panel.",
     "exportCompleted": "Export completed: {{path}}. {{textures}}{{warnings}}",
@@ -246,7 +249,13 @@
     "stateMachineMissingAnimation": "State machine '{{machine}}' state '{{state}}' references missing animation '{{animation}}'.",
     "ikMissingBone": "IK constraint '{{constraint}}' references missing {{role}} bone '{{bone}}'.",
     "invalidInterpolation": "Animation '{{animation}}' {{label}} key has unsupported interpolation '{{value}}'.",
-    "interpolationIgnoredForDiscreteTimeline": "Animation '{{animation}}' {{label}} uses interpolation on a discrete timeline and it will be ignored."
+    "interpolationIgnoredForDiscreteTimeline": "Animation '{{animation}}' {{label}} uses interpolation on a discrete timeline and it will be ignored.",
+    "clippingTooFewVertices": "Clipping attachment '{{name}}' needs at least 3 vertices.",
+    "clippingInvalidVertex": "Clipping attachment '{{name}}' has an invalid vertex.",
+    "clippingMissingEndSlot": "Clipping attachment '{{name}}' references missing end slot '{{slot}}'.",
+    "clippingZeroArea": "Clipping attachment '{{name}}' polygon has zero area.",
+    "clippingConcaveUnsupported": "Clipping attachment '{{name}}' is concave. v21 supports convex clipping polygons only.",
+    "clippingEndSlotBeforeStart": "Clipping attachment '{{name}}' ends before its starting slot."
   },
   "timeline": {
     "currentTime": "Current",
@@ -331,7 +340,7 @@
     "supported": "Supported",
     "license": "License",
     "docs": "Docs",
-    "supportedFeatures": "region, mesh, weighted mesh, deform, interpolation, IK, skins, timelines, state machine"
+    "supportedFeatures": "region, mesh, weighted mesh, deform, interpolation, IK, skins, timelines, state machine, clipping"
   },
   "inspector": {
     "document": "Document",
@@ -343,6 +352,7 @@
     "animation": "Animation",
     "stateMachine": "State Machine",
     "meshVertex": "Mesh Vertex",
+    "clippingVertex": "Clipping Vertex",
     "deformKey": "Deform Key",
     "ikConstraint": "IK Constraint",
     "name": "Name",
@@ -375,7 +385,16 @@
     "setActiveSkin": "Set Active Skin",
     "duplicateSkin": "Duplicate Skin",
     "deleteSkin": "Delete Skin",
-    "addMeshAttachment": "Add Mesh Attachment"
+    "addMeshAttachment": "Add Mesh Attachment",
+    "addClipping": "Add Clipping Attachment"
+  },
+  "attachment": {
+    "type": {
+      "region": "Region",
+      "mesh": "Mesh",
+      "clipping": "Clipping"
+    },
+    "addClipping": "Add Clipping Attachment"
   },
   "preview": {
     "resetView": "Reset View",
@@ -392,6 +411,15 @@
     "addWeight": "Add Weight",
     "noWeightsForVertex": "No weights for this vertex. It uses rigid fallback in Unity.",
     "triangles": "Triangles"
+  },
+  "clipping": {
+    "title": "Clipping",
+    "endSlot": "End Slot",
+    "vertices": "Clipping Vertices",
+    "addVertex": "Add Vertex",
+    "deleteVertex": "Delete Vertex",
+    "resetRectangle": "Reset Rectangle",
+    "noVertices": "No clipping vertices."
   },
   "stateMachine": {
     "next": "Next",

@@ -6,6 +6,7 @@ import type {
   Suwol2DDrawOrderKey,
   Suwol2DEventKey,
   Suwol2DIkConstraint,
+  Suwol2DClippingAttachment,
   Suwol2DMeshAttachment,
   Suwol2DStateMachine,
   Suwol2DSlotTimeline,
@@ -261,6 +262,36 @@ function localizeValidationIssue(issue: ValidationIssue): ValidationIssue {
   const meshWeightMissingBone = message.match(/^Mesh attachment '(.+?)' references missing weight bone '(.+?)'\.$/);
   if (meshWeightMissingBone) {
     return withKey(issue, 'validation.meshWeightMissingBone', { name: meshWeightMissingBone[1], bone: meshWeightMissingBone[2] });
+  }
+
+  const clippingTooFewVertices = message.match(/^Clipping attachment '(.+?)' needs at least 3 vertices\.$/);
+  if (clippingTooFewVertices) {
+    return withKey(issue, 'validation.clippingTooFewVertices', { name: clippingTooFewVertices[1] });
+  }
+
+  const clippingInvalidVertex = message.match(/^Clipping attachment '(.+?)' has invalid vertex at index (.+?)\.$/);
+  if (clippingInvalidVertex) {
+    return withKey(issue, 'validation.clippingInvalidVertex', { name: clippingInvalidVertex[1], index: clippingInvalidVertex[2] });
+  }
+
+  const clippingMissingEndSlot = message.match(/^Clipping attachment '(.+?)' references missing endSlot '(.+?)'\.$/);
+  if (clippingMissingEndSlot) {
+    return withKey(issue, 'validation.clippingMissingEndSlot', { name: clippingMissingEndSlot[1], slot: clippingMissingEndSlot[2] });
+  }
+
+  const clippingZeroArea = message.match(/^Clipping attachment '(.+?)' polygon has zero area\.$/);
+  if (clippingZeroArea) {
+    return withKey(issue, 'validation.clippingZeroArea', { name: clippingZeroArea[1] });
+  }
+
+  const clippingConcave = message.match(/^Clipping attachment '(.+?)' polygon is concave and v21 officially supports convex polygons only\.$/);
+  if (clippingConcave) {
+    return withKey(issue, 'validation.clippingConcaveUnsupported', { name: clippingConcave[1] });
+  }
+
+  const clippingEndSlotBeforeStart = message.match(/^Clipping attachment '(.+?)' endSlot '(.+?)' is before the clipping slot in draw order\.$/);
+  if (clippingEndSlotBeforeStart) {
+    return withKey(issue, 'validation.clippingEndSlotBeforeStart', { name: clippingEndSlotBeforeStart[1], slot: clippingEndSlotBeforeStart[2] });
   }
 
   const duplicateAtlasRegion = message.match(/^Atlas '(.+?)' has duplicate region '(.+?)'\.$/);
@@ -1014,7 +1045,7 @@ function validateSkins(
         });
       }
 
-      validateAttachmentFields(issues, attachment, boneNames);
+      validateAttachmentFields(issues, attachment, boneNames, slotNames, document);
     }
   }
 }
@@ -1115,11 +1146,13 @@ function validateIkConstraints(
   }
 }
 
-function validateAttachmentFields(issues: ValidationIssue[], attachment: Suwol2DAttachment, boneNames: Set<string>): void {
-  if (!attachment.image.trim()) {
-    issues.push({ severity: 'error', message: `Attachment '${attachment.name}' has no image.` });
-  }
-
+function validateAttachmentFields(
+  issues: ValidationIssue[],
+  attachment: Suwol2DAttachment,
+  boneNames: Set<string>,
+  slotNames: Set<string>,
+  document: Suwol2DDocument
+): void {
   validateFiniteTransform(issues, `Attachment '${attachment.name}'`, [
     attachment.x,
     attachment.y,
@@ -1129,6 +1162,10 @@ function validateAttachmentFields(issues: ValidationIssue[], attachment: Suwol2D
   ]);
 
   if (attachment.type === 'region') {
+    if (!attachment.image.trim()) {
+      issues.push({ severity: 'error', message: `Attachment '${attachment.name}' has no image.` });
+    }
+
     if (attachment.width <= 0 || attachment.height <= 0) {
       issues.push({ severity: 'error', message: `Attachment '${attachment.name}' has non-positive width or height.` });
     }
@@ -1141,7 +1178,63 @@ function validateAttachmentFields(issues: ValidationIssue[], attachment: Suwol2D
   }
 
   if (attachment.type === 'mesh') {
+    if (!attachment.image.trim()) {
+      issues.push({ severity: 'error', message: `Attachment '${attachment.name}' has no image.` });
+    }
+
     validateMeshAttachment(issues, attachment, boneNames);
+    return;
+  }
+
+  if (attachment.type === 'clipping') {
+    validateClippingAttachment(issues, attachment, slotNames, document);
+  }
+}
+
+function validateClippingAttachment(
+  issues: ValidationIssue[],
+  attachment: Suwol2DClippingAttachment,
+  slotNames: Set<string>,
+  document: Suwol2DDocument
+): void {
+  const vertices = attachment.clippingVertices ?? [];
+  if (vertices.length < 3) {
+    issues.push({ severity: 'error', message: `Clipping attachment '${attachment.name}' needs at least 3 vertices.` });
+  }
+
+  for (let index = 0; index < vertices.length; index += 1) {
+    const vertex = vertices[index];
+    if (!vertex || !Number.isFinite(vertex.x) || !Number.isFinite(vertex.y)) {
+      issues.push({ severity: 'error', message: `Clipping attachment '${attachment.name}' has invalid vertex at index ${index}.` });
+    }
+  }
+
+  const endSlot = attachment.endSlot?.trim();
+  if (endSlot && !slotNames.has(endSlot)) {
+    issues.push({ severity: 'error', message: `Clipping attachment '${attachment.name}' references missing endSlot '${endSlot}'.` });
+  }
+
+  if (vertices.length >= 3 && vertices.every((vertex) => vertex && Number.isFinite(vertex.x) && Number.isFinite(vertex.y))) {
+    const area = signedPolygonArea(vertices);
+    if (Math.abs(area) <= 0.000001) {
+      issues.push({ severity: 'error', message: `Clipping attachment '${attachment.name}' polygon has zero area.` });
+    } else if (!isConvexPolygon(vertices)) {
+      issues.push({
+        severity: 'warning',
+        message: `Clipping attachment '${attachment.name}' polygon is concave and v21 officially supports convex polygons only.`
+      });
+    }
+  }
+
+  if (endSlot && slotNames.has(attachment.slot) && slotNames.has(endSlot)) {
+    const startSlot = document.slots.find((slot) => slot.name === attachment.slot);
+    const end = document.slots.find((slot) => slot.name === endSlot);
+    if (startSlot && end && end.drawOrder < startSlot.drawOrder) {
+      issues.push({
+        severity: 'warning',
+        message: `Clipping attachment '${attachment.name}' endSlot '${endSlot}' is before the clipping slot in draw order.`
+      });
+    }
   }
 }
 
@@ -1256,6 +1349,43 @@ function validateMeshWeights(issues: ValidationIssue[], attachment: Suwol2DMeshA
       });
     }
   }
+}
+
+function signedPolygonArea(vertices: Array<{ x: number; y: number }>): number {
+  let area = 0;
+  for (let index = 0; index < vertices.length; index += 1) {
+    const current = vertices[index];
+    const next = vertices[(index + 1) % vertices.length];
+    area += current.x * next.y - next.x * current.y;
+  }
+
+  return area * 0.5;
+}
+
+function isConvexPolygon(vertices: Array<{ x: number; y: number }>): boolean {
+  if (vertices.length < 4) {
+    return true;
+  }
+
+  let sign = 0;
+  for (let index = 0; index < vertices.length; index += 1) {
+    const a = vertices[index];
+    const b = vertices[(index + 1) % vertices.length];
+    const c = vertices[(index + 2) % vertices.length];
+    const cross = ((b.x - a.x) * (c.y - b.y)) - ((b.y - a.y) * (c.x - b.x));
+    if (Math.abs(cross) <= 0.000001) {
+      continue;
+    }
+
+    const currentSign = Math.sign(cross);
+    if (sign === 0) {
+      sign = currentSign;
+    } else if (sign !== currentSign) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function validateBoneHierarchy(issues: ValidationIssue[], document: Suwol2DDocument): void {

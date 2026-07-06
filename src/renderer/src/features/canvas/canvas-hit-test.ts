@@ -1,4 +1,4 @@
-import type { Suwol2DMeshAttachment } from '../../../../shared/suwol2d-format';
+import type { Suwol2DClippingAttachment, Suwol2DMeshAttachment } from '../../../../shared/suwol2d-format';
 import type { AttachmentCanvasTransform, Point2D } from './canvas-transform';
 import { attachmentLocalToCanvas } from './canvas-transform';
 
@@ -8,7 +8,20 @@ export interface CanvasMeshTarget {
   deformOffsets: Point2D[];
 }
 
+export interface CanvasClippingTarget {
+  attachment: Suwol2DClippingAttachment;
+  transform: AttachmentCanvasTransform;
+}
+
 export interface MeshVertexHit {
+  attachmentName: string;
+  vertex: number;
+  distance: number;
+  canvasPoint: Point2D;
+  transform: AttachmentCanvasTransform;
+}
+
+export interface ClippingVertexHit {
   attachmentName: string;
   vertex: number;
   distance: number;
@@ -26,6 +39,30 @@ export function hitTestMeshVertex(targets: CanvasMeshTarget[], point: Point2D, r
   for (const target of targets) {
     for (let vertexIndex = 0; vertexIndex < target.attachment.vertices.length; vertexIndex += 1) {
       const canvasPoint = getVertexCanvasPoint(target, vertexIndex);
+      const distance = Math.hypot(canvasPoint.x - point.x, canvasPoint.y - point.y);
+      if (distance > radius || (best && distance >= best.distance)) {
+        continue;
+      }
+
+      best = {
+        attachmentName: target.attachment.name,
+        vertex: vertexIndex,
+        distance,
+        canvasPoint,
+        transform: target.transform
+      };
+    }
+  }
+
+  return best;
+}
+
+export function hitTestClippingVertex(targets: CanvasClippingTarget[], point: Point2D, radius: number): ClippingVertexHit | null {
+  let best: ClippingVertexHit | null = null;
+  for (const target of targets) {
+    for (let vertexIndex = 0; vertexIndex < target.attachment.clippingVertices.length; vertexIndex += 1) {
+      const vertex = target.attachment.clippingVertices[vertexIndex];
+      const canvasPoint = attachmentLocalToCanvas(vertex, target.transform);
       const distance = Math.hypot(canvasPoint.x - point.x, canvasPoint.y - point.y);
       if (distance > radius || (best && distance >= best.distance)) {
         continue;

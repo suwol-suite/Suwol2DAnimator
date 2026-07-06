@@ -34,6 +34,8 @@ import type {
   Suwol2DBoneWeight,
   Suwol2DBone,
   Suwol2DBoneTimeline,
+  Suwol2DClippingAttachment,
+  Suwol2DClippingVertex,
   Suwol2DDeformKey,
   Suwol2DDeformTimeline,
   Suwol2DDocument,
@@ -139,8 +141,9 @@ import {
   type CanvasToolMode,
   type CanvasVertexSelection
 } from './features/canvas/canvas-tools';
-import { collectBrushVertexFalloffs, hitTestMeshVertex, type CanvasMeshTarget } from './features/canvas/canvas-hit-test';
+import { collectBrushVertexFalloffs, hitTestClippingVertex, hitTestMeshVertex, type CanvasClippingTarget, type CanvasMeshTarget } from './features/canvas/canvas-hit-test';
 import {
+  attachmentLocalToCanvas,
   canvasToAttachmentLocal,
   getAttachmentCanvasTransform,
   type AttachmentCanvasTransform,
@@ -154,6 +157,7 @@ import {
   createDeformSampleDocument,
   createIkSampleDocument,
   createInterpolationSampleDocument,
+  createClippingSampleDocument,
   createMeshSampleDocument,
   createSampleDocument,
   createSkinSampleDocument,
@@ -172,6 +176,7 @@ type Selection =
   | { type: 'ikConstraint'; name: string }
   | { type: 'stateMachine'; name: string }
   | { type: 'meshVertex'; attachment: string; vertex: number }
+  | { type: 'clippingVertex'; attachment: string; vertex: number }
   | { type: 'deformKey'; animation: string; slot: string; attachment: string; time: number };
 
 type KeyKind = 'translate' | 'rotate' | 'scale';
@@ -458,7 +463,10 @@ export function App() {
       }
 
       const attachment = findAttachmentForEdit(document, activeSkinName, current.attachment);
-      return normalizeCanvasVertexSelection(current, attachment?.type === 'mesh' ? attachment : undefined);
+      return normalizeCanvasVertexSelection(
+        current,
+        attachment?.type === 'mesh' || attachment?.type === 'clipping' ? attachment : undefined
+      );
     });
   }, [activeSkinName, document]);
 
@@ -938,6 +946,33 @@ export function App() {
     }
   }
 
+  async function handleCreateClippingSampleCharacter() {
+    if (!projectFilePath) {
+      setLocalizedStatus('status.createProjectBeforeSample', { sample: t('sample.clipping') });
+      return;
+    }
+
+    try {
+      const sampleImages = await window.suwol.project.createAnimationTimelinesSampleAssets(projectFilePath);
+      const mergedImages = mergeImages(project.importedImages, sampleImages);
+      commitProjectChange((draft) => {
+        draft.importedImages = mergedImages;
+        draft.document = createClippingSampleDocument(mergedImages);
+      });
+      setActiveSkinName(defaultSkinName);
+      setCurrentAnimationName('walk');
+      setCurrentTime(0);
+      setTimelineMode('attachment');
+      setTimelineFilter('all');
+      setTimelineKeySelection(null);
+      setSelectedCanvasVertices(null);
+      setSelection({ type: 'attachment', name: 'body_mask' });
+      setLocalizedStatus('status.clippingSampleCreated');
+    } catch (error) {
+      setStatus(getErrorMessage(error));
+    }
+  }
+
   async function handleExportJson() {
     if (!projectFilePath) {
       setLocalizedStatus('status.createOrOpenBeforeExport');
@@ -1229,7 +1264,9 @@ export function App() {
   }
 
   function deleteSlot(name: string) {
-    if (collectSkinAttachments(document).some((attachment) => attachment.slot === name)) {
+    if (collectSkinAttachments(document).some((attachment) => (
+      attachment.slot === name || (attachment.type === 'clipping' && attachment.endSlot === name)
+    ))) {
       setStatus(`Cannot delete slot '${name}' because attachments reference it.`);
       return;
     }
@@ -1254,16 +1291,22 @@ export function App() {
     });
   }
 
-  function addAttachment(type: 'region' | 'mesh' = 'region') {
+  function addAttachment(type: 'region' | 'mesh' | 'clipping' = 'region') {
     updateDocument((draft) => {
       const skin = ensureMutableSkin(draft, activeSkinName);
       const slotName = selection?.type === 'slot' ? selection.name : draft.slots[0]?.name ?? '';
       const image = project.importedImages[0];
-      const baseName = type === 'mesh' ? `${image?.name ?? 'attachment'}_mesh` : image?.name ?? 'attachment';
+      const baseName = type === 'clipping'
+        ? 'clipping_mask'
+        : type === 'mesh'
+          ? `${image?.name ?? 'attachment'}_mesh`
+          : image?.name ?? 'attachment';
       const name = uniqueName(baseName, skin.attachments.map((attachment) => attachment.name));
-      const attachment = type === 'mesh'
-        ? createDefaultMeshAttachment(name, slotName, image)
-        : createDefaultRegionAttachment(name, slotName, image);
+      const attachment = type === 'clipping'
+        ? createDefaultClippingAttachment(name, slotName, draft)
+        : type === 'mesh'
+          ? createDefaultMeshAttachment(name, slotName, image)
+          : createDefaultRegionAttachment(name, slotName, image);
       skin.attachments.push(attachment);
       const slot = draft.slots.find((candidate) => candidate.name === slotName);
       if (slot) slot.attachment = name;
@@ -1484,7 +1527,7 @@ export function App() {
   const selectedDeformMesh = selectedDeformAttachment?.type === 'mesh' ? selectedDeformAttachment : undefined;
   const activeCanvasMeshName = selection?.type === 'meshVertex'
     ? selection.attachment
-    : selectedDeformMesh?.name ?? selectedCanvasVertices?.attachment ?? '';
+    : selectedDeformMesh?.name ?? ((selectedCanvasVertices?.targetType ?? 'mesh') === 'mesh' ? selectedCanvasVertices?.attachment : '') ?? '';
   const currentTimeline = currentAnimation && selectedBone
     ? currentAnimation.bones.find((timeline) => timeline.bone === selectedBone.name)
     : undefined;
@@ -1498,7 +1541,8 @@ export function App() {
     { label: t('sample.timelines'), onSelect: handleCreateAnimationTimelinesSampleCharacter },
     { label: t('sample.stateMachine'), onSelect: handleCreateAnimationMixingStateMachineSampleCharacter },
     { label: t('sample.timelineEditing'), onSelect: handleCreateTimelineUsabilitySampleCharacter },
-    { label: t('sample.interpolation'), onSelect: handleCreateInterpolationSampleCharacter }
+    { label: t('sample.interpolation'), onSelect: handleCreateInterpolationSampleCharacter },
+    { label: t('sample.clipping'), onSelect: handleCreateClippingSampleCharacter }
   ];
 
   menuCommandRef.current = (command) => {
@@ -1642,6 +1686,7 @@ export function App() {
           </ListSection>
           <ListSection title={t('panel.attachments')} icon={<Box size={15} />} onAdd={() => addAttachment('region')}>
             <button className="wide-action" type="button" onClick={() => addAttachment('mesh')}>{t('inspector.addMeshAttachment')}</button>
+            <button className="wide-action" type="button" onClick={() => addAttachment('clipping')}>{t('attachment.addClipping')}</button>
             {activeSkinAttachments.map((attachment) => (
               <ListButton
                 key={`${activeSkinName}-${attachment.slot}-${attachment.name}`}
@@ -2560,15 +2605,17 @@ function Inspector({
         <SelectField
           label={t('inspector.type')}
           value={attachment.type}
-          options={['region', 'mesh']}
+          options={['region', 'mesh', 'clipping']}
           onChange={(value) => updateDocument((draft) => {
             const current = findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name);
-            const image = images.find((candidate) => candidate.name === current.image) ?? images[0];
+            const image = images.find((candidate) => candidate.name === getAttachmentImageName(current)) ?? images[0];
             replaceAttachmentInSkin(
               draft,
               activeSkinName,
               current.name,
-              value === 'mesh'
+              value === 'clipping'
+                ? convertToClippingAttachment(current, draft)
+                : value === 'mesh'
                 ? convertToMeshAttachment(current, image)
                 : convertToRegionAttachment(current, image)
             );
@@ -2578,7 +2625,12 @@ function Inspector({
           })}
         />
         <SelectField label={t('inspector.slot')} value={attachment.slot} options={document.slots.map((slot) => slot.name)} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).slot = value; })} />
-        <SelectField label={t('inspector.image')} value={attachment.image} options={images.map((image) => image.name)} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).image = value; })} />
+        {attachment.type !== 'clipping' && (
+          <SelectField label={t('inspector.image')} value={attachment.image} options={images.map((image) => image.name)} onChange={(value) => updateDocument((draft) => {
+            const current = findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name);
+            if (current.type !== 'clipping') current.image = value;
+          })} />
+        )}
         <NumberField label="X" value={attachment.x} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).x = value; })} />
         <NumberField label="Y" value={attachment.y} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).y = value; })} />
         <NumberField label={t('inspector.rotation')} value={attachment.rotation} onChange={(value) => updateDocument((draft) => { findAttachmentInSkinForEdit(draft, activeSkinName, attachment.name).rotation = value; })} />
@@ -2589,11 +2641,18 @@ function Inspector({
             <NumberField label={t('inspector.width')} value={attachment.width} onChange={(value) => updateDocument((draft) => { findRegionAttachmentForEdit(draft, activeSkinName, attachment.name).width = value; })} />
             <NumberField label={t('inspector.height')} value={attachment.height} onChange={(value) => updateDocument((draft) => { findRegionAttachmentForEdit(draft, activeSkinName, attachment.name).height = value; })} />
           </>
-        ) : (
+        ) : attachment.type === 'mesh' ? (
           <MeshAttachmentFields
             attachment={attachment}
             document={document}
             images={images}
+            activeSkinName={activeSkinName}
+            updateDocument={updateDocument}
+          />
+        ) : (
+          <ClippingAttachmentFields
+            attachment={attachment}
+            document={document}
             activeSkinName={activeSkinName}
             updateDocument={updateDocument}
           />
@@ -2625,6 +2684,28 @@ function Inspector({
         <h2>{t('inspector.meshVertex')}</h2>
         <ReadonlyRow label={t('inspector.attachment')} value={attachment?.name ?? selection.attachment} />
         <ReadonlyRow label={t('inspector.vertex')} value={String(selection.vertex)} />
+      </section>
+    );
+  }
+
+  if (selection.type === 'clippingVertex') {
+    const attachment = findAttachmentForEdit(document, activeSkinName, selection.attachment);
+    const vertex = attachment?.type === 'clipping' ? attachment.clippingVertices[selection.vertex] : undefined;
+    return (
+      <section className="inspector-section">
+        <h2>{t('inspector.clippingVertex')}</h2>
+        <ReadonlyRow label={t('inspector.attachment')} value={attachment?.name ?? selection.attachment} />
+        <ReadonlyRow label={t('inspector.vertex')} value={String(selection.vertex)} />
+        {vertex && (
+          <>
+            <NumberField label="X" value={vertex.x} onChange={(value) => updateDocument((draft) => {
+              findClippingAttachmentForEdit(draft, activeSkinName, selection.attachment).clippingVertices[selection.vertex].x = value;
+            })} />
+            <NumberField label="Y" value={vertex.y} onChange={(value) => updateDocument((draft) => {
+              findClippingAttachmentForEdit(draft, activeSkinName, selection.attachment).clippingVertices[selection.vertex].y = value;
+            })} />
+          </>
+        )}
       </section>
     );
   }
@@ -2717,6 +2798,7 @@ type CanvasDragState =
     kind: 'moveVertex';
     pointerId: number;
     attachmentName: string;
+    targetType: 'mesh' | 'clipping';
     vertices: number[];
     lastLocal: Point2D;
     transform: AttachmentCanvasTransform;
@@ -2921,8 +3003,15 @@ function CanvasPreview({
     }
 
     const targets = getVisibleMeshTargets();
+    const clippingTargets = getVisibleClippingTargets();
     if (effectiveToolMode === 'select' || effectiveToolMode === 'moveVertex') {
-      const hit = hitTestMeshVertex(targets, point, 12);
+      const meshHit = hitTestMeshVertex(targets, point, 12);
+      const clippingHit = hitTestClippingVertex(clippingTargets, point, 12);
+      const hit = !meshHit || (clippingHit && clippingHit.distance < meshHit.distance)
+        ? clippingHit
+          ? { ...clippingHit, targetType: 'clipping' as const }
+          : null
+        : { ...meshHit, targetType: 'mesh' as const };
       if (!hit) {
         if (!event.shiftKey) {
           setSelectedVertices(null);
@@ -2932,15 +3021,20 @@ function CanvasPreview({
       }
 
       event.preventDefault();
-      const nextSelection = updateCanvasVertexSelection(selectedVertices, hit.attachmentName, hit.vertex, event.shiftKey);
+      const nextSelection = updateCanvasVertexSelection(selectedVertices, hit.attachmentName, hit.vertex, event.shiftKey, hit.targetType);
       setSelectedVertices(nextSelection);
-      setSelection(nextSelection ? { type: 'meshVertex', attachment: hit.attachmentName, vertex: hit.vertex } : null);
+      setSelection(nextSelection
+        ? hit.targetType === 'clipping'
+          ? { type: 'clippingVertex', attachment: hit.attachmentName, vertex: hit.vertex }
+          : { type: 'meshVertex', attachment: hit.attachmentName, vertex: hit.vertex }
+        : null);
 
       if (effectiveToolMode === 'moveVertex' && nextSelection?.vertices.length) {
         dragState.current = {
           kind: 'moveVertex',
           pointerId: event.pointerId,
           attachmentName: hit.attachmentName,
+          targetType: hit.targetType,
           vertices: nextSelection.vertices,
           lastLocal: canvasToAttachmentLocal(point, hit.transform),
           transform: hit.transform,
@@ -3018,13 +3112,13 @@ function CanvasPreview({
       return;
     }
 
-    const targets = getVisibleMeshTargets();
-    const target = targets.find((candidate) => candidate.attachment.name === drag.attachmentName);
-    if (!target) {
-      return;
-    }
-
     if (drag.kind === 'moveVertex') {
+      const targets = drag.targetType === 'clipping' ? getVisibleClippingTargets() : getVisibleMeshTargets();
+      const target = targets.find((candidate) => candidate.attachment.name === drag.attachmentName);
+      if (!target) {
+        return;
+      }
+
       const currentLocal = canvasToAttachmentLocal(point, drag.transform);
       const deltaX = currentLocal.x - drag.lastLocal.x;
       const deltaY = currentLocal.y - drag.lastLocal.y;
@@ -3033,15 +3127,30 @@ function CanvasPreview({
       }
 
       updateDocument((draft) => {
-        const mesh = findMeshAttachmentForEdit(draft, activeSkinName, drag.attachmentName);
-        for (const vertexIndex of drag.vertices) {
-          const vertex = mesh.vertices[vertexIndex];
-          if (!vertex) continue;
-          vertex.x = round(vertex.x + deltaX);
-          vertex.y = round(vertex.y + deltaY);
+        if (drag.targetType === 'clipping') {
+          const clipping = findClippingAttachmentForEdit(draft, activeSkinName, drag.attachmentName);
+          for (const vertexIndex of drag.vertices) {
+            const vertex = clipping.clippingVertices[vertexIndex];
+            if (!vertex) continue;
+            vertex.x = round(vertex.x + deltaX);
+            vertex.y = round(vertex.y + deltaY);
+          }
+        } else {
+          const mesh = findMeshAttachmentForEdit(draft, activeSkinName, drag.attachmentName);
+          for (const vertexIndex of drag.vertices) {
+            const vertex = mesh.vertices[vertexIndex];
+            if (!vertex) continue;
+            vertex.x = round(vertex.x + deltaX);
+            vertex.y = round(vertex.y + deltaY);
+          }
         }
       }, !drag.mutated);
       dragState.current = { ...drag, lastLocal: currentLocal, mutated: true };
+      return;
+    }
+
+    const target = getVisibleMeshTargets().find((candidate) => candidate.attachment.name === drag.attachmentName);
+    if (!target) {
       return;
     }
 
@@ -3180,6 +3289,46 @@ function CanvasPreview({
     return targets;
   }
 
+  function getVisibleClippingTargets(): CanvasClippingTarget[] {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return [];
+    }
+
+    const frame = { width: canvas.width, height: canvas.height, view };
+    const animation = document.animations.find((candidate) => candidate.name === animationName);
+    const pose = previewMix ? sampleMixedDocumentPose(document, previewMix) : sampleDocumentPose(document, animationName, time);
+    const attachmentOverrides = previewMix ? sampleMixedAttachmentOverrides(document, previewMix) : sampleAttachmentOverrides(animation, time);
+    const slots = previewMix ? sampleMixedDrawOrder(document, previewMix) : sampleDrawOrder(document, animation, time);
+    const targets: CanvasClippingTarget[] = [];
+
+    for (const slot of slots) {
+      const override = attachmentOverrides.get(slot.name);
+      if (attachmentOverrides.has(slot.name) && !override) {
+        continue;
+      }
+
+      const attachment = attachmentOverrides.has(slot.name)
+        ? resolveExactSlotAttachment(document, activeSkinName, slot.name, override ?? '')
+        : resolveSlotAttachment(document, activeSkinName, slot.name, slot.attachment);
+      if (!attachment || attachment.type !== 'clipping') {
+        continue;
+      }
+
+      const bone = pose.get(slot.bone);
+      if (!bone) {
+        continue;
+      }
+
+      targets.push({
+        attachment,
+        transform: getAttachmentCanvasTransform(bone, attachment, frame)
+      });
+    }
+
+    return targets;
+  }
+
   function drawPreview() {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -3200,9 +3349,13 @@ function CanvasPreview({
     const pose = previewMix ? sampleMixedDocumentPose(document, previewMix) : sampleDocumentPose(document, animationName, time);
     const attachmentOverrides = previewMix ? sampleMixedAttachmentOverrides(document, previewMix) : sampleAttachmentOverrides(animation, time);
     const slots = previewMix ? sampleMixedDrawOrder(document, previewMix) : sampleDrawOrder(document, animation, time);
+    let activeClip: { points: Point2D[]; endSlot: string | null } | null = null;
     for (const slot of slots) {
       const override = attachmentOverrides.get(slot.name);
       if (attachmentOverrides.has(slot.name) && !override) {
+        if (activeClip?.endSlot === slot.name) {
+          activeClip = null;
+        }
         continue;
       }
 
@@ -3212,6 +3365,27 @@ function CanvasPreview({
       if (!attachment) continue;
       const bone = pose.get(slot.bone);
       if (!bone) continue;
+
+      if (attachment.type === 'clipping') {
+        const transform = getAttachmentCanvasTransform(bone, attachment, { width, height, view });
+        const selectedClipVertices = selectedVertices?.attachment === attachment.name && (selectedVertices.targetType ?? 'mesh') === 'clipping'
+          ? new Set(selectedVertices.vertices)
+          : new Set<number>();
+        const clipPoints = getClippingCanvasPoints(attachment, transform);
+        drawClippingPreview(
+          context,
+          attachment,
+          transform,
+          selection?.type === 'attachment' && selection.name === attachment.name,
+          selectedClipVertices
+        );
+        activeClip = clipPoints.length >= 3 ? { points: clipPoints, endSlot: attachment.endSlot ?? null } : null;
+        if (activeClip?.endSlot === slot.name) {
+          activeClip = null;
+        }
+        continue;
+      }
+
       const image = findCachedImage(imageCache.current, attachment.image);
       const slotColor = previewMix ? sampleMixedSlotColor(document, previewMix, slot.name) : sampleSlotColor(animation, slot.name, time);
 
@@ -3220,6 +3394,9 @@ function CanvasPreview({
       const y = centerY - (bone.worldY + offset.y) * unitScale;
 
       context.save();
+      if (activeClip) {
+        applyCanvasClipPath(context, activeClip.points);
+      }
       context.translate(x, y);
       context.rotate((-(bone.worldRotation + attachment.rotation) * Math.PI) / 180);
       context.scale(bone.worldScaleX * attachment.scaleX, bone.worldScaleY * attachment.scaleY);
@@ -3255,6 +3432,9 @@ function CanvasPreview({
         );
       }
       context.restore();
+      if (activeClip?.endSlot === slot.name) {
+        activeClip = null;
+      }
     }
 
     const ikTargets = new Set((document.ikConstraints ?? []).map((constraint) => constraint.targetBone));
@@ -3322,7 +3502,9 @@ function CanvasPreview({
           <span>{t('canvas.tool.current')}: {t(canvasToolTranslationKey(effectiveToolMode))}</span>
           <span>
             {selectedVertices?.vertices.length
-              ? t('canvas.vertex.selected', { count: selectedVertices.vertices.length })
+              ? (selectedVertices.targetType ?? 'mesh') === 'clipping'
+                ? t('canvas.vertex.selectedClipping', { count: selectedVertices.vertices.length })
+                : t('canvas.vertex.selected', { count: selectedVertices.vertices.length })
               : activeMeshName ? t('canvas.vertex.activeMesh', { name: activeMeshName }) : t('canvas.vertex.noMeshSelected')}
           </span>
         </div>
@@ -4669,6 +4851,7 @@ function useLocalizedLabel(label: string): string {
     Length: 'inspector.length',
     Bone: 'inspector.bone',
     Attachment: 'inspector.attachment',
+    'End Slot': 'clipping.endSlot',
     'Draw Order': 'inspector.drawOrder',
     Active: 'common.active',
     Product: 'about.product',
@@ -4687,6 +4870,81 @@ function useLocalizedLabel(label: string): string {
   };
   const key = keyByLabel[label];
   return key ? t(key) : label;
+}
+
+function ClippingAttachmentFields({
+  attachment,
+  document,
+  activeSkinName,
+  updateDocument
+}: {
+  attachment: Suwol2DClippingAttachment;
+  document: Suwol2DDocument;
+  activeSkinName: string;
+  updateDocument: (updater: (document: Suwol2DDocument) => void) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <section className="mesh-field-block">
+      <SelectField
+        label={t('clipping.endSlot')}
+        value={attachment.endSlot ?? ''}
+        options={['', ...document.slots.map((slot) => slot.name)]}
+        onChange={(value) => updateDocument((draft) => {
+          findClippingAttachmentForEdit(draft, activeSkinName, attachment.name).endSlot = value || null;
+        })}
+      />
+      <button
+        className="wide-action"
+        type="button"
+        onClick={() => updateDocument((draft) => {
+          findClippingAttachmentForEdit(draft, activeSkinName, attachment.name).clippingVertices = createDefaultClippingVertices();
+        })}
+      >
+        {t('clipping.resetRectangle')}
+      </button>
+      <h3>{t('clipping.vertices')}</h3>
+      <div className="mesh-row mesh-row-header">
+        <span>X</span>
+        <span>Y</span>
+        <span />
+      </div>
+      {attachment.clippingVertices.length === 0 ? (
+        <p className="mesh-note">{t('clipping.noVertices')}</p>
+      ) : attachment.clippingVertices.map((vertex, index) => (
+        <div className="mesh-row triangle-row" key={`clipping-${index}`}>
+          {(['x', 'y'] as Array<keyof Suwol2DClippingVertex>).map((field) => (
+            <NumberInline
+              key={field}
+              value={vertex[field]}
+              onChange={(value) => updateDocument((draft) => {
+                const clipping = findClippingAttachmentForEdit(draft, activeSkinName, attachment.name);
+                clipping.clippingVertices[index][field] = value;
+              })}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={() => updateDocument((draft) => {
+              findClippingAttachmentForEdit(draft, activeSkinName, attachment.name).clippingVertices.splice(index, 1);
+            })}
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      ))}
+      <button
+        className="wide-action"
+        type="button"
+        onClick={() => updateDocument((draft) => {
+          const clipping = findClippingAttachmentForEdit(draft, activeSkinName, attachment.name);
+          clipping.clippingVertices.push({ x: 0, y: 0 });
+        })}
+      >
+        {t('clipping.addVertex')}
+      </button>
+    </section>
+  );
 }
 
 function MeshAttachmentFields({
@@ -4887,7 +5145,12 @@ function renameSlot(
   if (!safeName) return;
   updateDocument((draft) => {
     findSlot(draft, oldName).name = safeName;
-    for (const skin of getEffectiveSkins(draft)) for (const attachment of skin.attachments) if (attachment.slot === oldName) attachment.slot = safeName;
+    for (const skin of getEffectiveSkins(draft)) {
+      for (const attachment of skin.attachments) {
+        if (attachment.slot === oldName) attachment.slot = safeName;
+        if (attachment.type === 'clipping' && attachment.endSlot === oldName) attachment.endSlot = safeName;
+      }
+    }
     for (const animation of draft.animations) for (const deform of animation.deforms ?? []) if (deform.slot === oldName) deform.slot = safeName;
     for (const animation of draft.animations) {
       for (const timeline of animation.attachments ?? []) if (timeline.slot === oldName) timeline.slot = safeName;
@@ -5296,6 +5559,12 @@ function findMeshAttachmentForEdit(document: Suwol2DDocument, activeSkinName: st
   return attachment;
 }
 
+function findClippingAttachmentForEdit(document: Suwol2DDocument, activeSkinName: string, name: string): Suwol2DClippingAttachment {
+  const attachment = findAttachmentInSkinForEdit(document, activeSkinName, name);
+  if (attachment.type !== 'clipping') throw new Error(`Clipping attachment not found in active skin: ${name}`);
+  return attachment;
+}
+
 function findAnimation(document: Suwol2DDocument, name: string): Suwol2DAnimation {
   const animation = document.animations.find((candidate) => candidate.name === name);
   if (!animation) throw new Error(`Animation not found: ${name}`);
@@ -5563,18 +5832,48 @@ function createDefaultMeshAttachment(name: string, slotName: string, image: Impo
   };
 }
 
+function createDefaultClippingAttachment(name: string, slotName: string, document: Suwol2DDocument): Suwol2DClippingAttachment {
+  const endSlot = getDefaultClippingEndSlot(document, slotName);
+  return {
+    name,
+    slot: slotName,
+    type: 'clipping',
+    ...(endSlot ? { endSlot } : {}),
+    x: 0,
+    y: 0,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    clippingVertices: createDefaultClippingVertices()
+  };
+}
+
+function createDefaultClippingVertices(): Suwol2DClippingVertex[] {
+  return [
+    { x: -0.64, y: -0.64 },
+    { x: 0.64, y: -0.64 },
+    { x: 0.64, y: 0.64 },
+    { x: -0.64, y: 0.64 }
+  ];
+}
+
 function convertToMeshAttachment(attachment: Suwol2DAttachment, image: ImportedImage | undefined): Suwol2DMeshAttachment {
   if (attachment.type === 'mesh') {
     return attachment;
   }
 
-  const width = attachment.width > 0 ? attachment.width : meshSizeForImage(image).width;
-  const height = attachment.height > 0 ? attachment.height : meshSizeForImage(image).height;
+  const bounds = attachment.type === 'clipping' ? getClippingBounds(attachment.clippingVertices) : null;
+  const width = attachment.type === 'region' && attachment.width > 0
+    ? attachment.width
+    : bounds?.width ?? meshSizeForImage(image).width;
+  const height = attachment.type === 'region' && attachment.height > 0
+    ? attachment.height
+    : bounds?.height ?? meshSizeForImage(image).height;
   return {
     name: attachment.name,
     slot: attachment.slot,
     type: 'mesh',
-    image: attachment.image,
+    image: getAttachmentImageName(attachment) || image?.name || '',
     x: attachment.x,
     y: attachment.y,
     rotation: attachment.rotation,
@@ -5590,13 +5889,15 @@ function convertToRegionAttachment(attachment: Suwol2DAttachment, image: Importe
     return attachment;
   }
 
-  const bounds = getMeshBounds(attachment.vertices);
+  const bounds = attachment.type === 'mesh'
+    ? getMeshBounds(attachment.vertices)
+    : getClippingBounds(attachment.clippingVertices);
   const size = meshSizeForImage(image);
   return {
     name: attachment.name,
     slot: attachment.slot,
     type: 'region',
-    image: attachment.image,
+    image: getAttachmentImageName(attachment) || image?.name || '',
     x: attachment.x,
     y: attachment.y,
     rotation: attachment.rotation,
@@ -5604,6 +5905,33 @@ function convertToRegionAttachment(attachment: Suwol2DAttachment, image: Importe
     height: bounds ? bounds.height : size.height,
     scaleX: attachment.scaleX,
     scaleY: attachment.scaleY
+  };
+}
+
+function convertToClippingAttachment(attachment: Suwol2DAttachment, document: Suwol2DDocument): Suwol2DClippingAttachment {
+  if (attachment.type === 'clipping') {
+    return attachment;
+  }
+
+  const vertices = attachment.type === 'mesh'
+    ? attachment.vertices.map((vertex) => ({ x: vertex.x, y: vertex.y }))
+    : [
+      { x: -attachment.width / 2, y: -attachment.height / 2 },
+      { x: attachment.width / 2, y: -attachment.height / 2 },
+      { x: attachment.width / 2, y: attachment.height / 2 },
+      { x: -attachment.width / 2, y: attachment.height / 2 }
+    ];
+  return {
+    name: attachment.name,
+    slot: attachment.slot,
+    type: 'clipping',
+    ...(getDefaultClippingEndSlot(document, attachment.slot) ? { endSlot: getDefaultClippingEndSlot(document, attachment.slot) } : {}),
+    x: attachment.x,
+    y: attachment.y,
+    rotation: attachment.rotation,
+    scaleX: attachment.scaleX,
+    scaleY: attachment.scaleY,
+    clippingVertices: vertices.length >= 3 ? vertices : createDefaultClippingVertices()
   };
 }
 
@@ -5667,7 +5995,21 @@ function meshSizeForImage(image: ImportedImage | undefined): { width: number; he
   };
 }
 
-function getMeshBounds(vertices: Suwol2DMeshVertex[]): { minX: number; maxX: number; minY: number; maxY: number; width: number; height: number } | null {
+function getDefaultClippingEndSlot(document: Suwol2DDocument, slotName: string): string | null {
+  const ordered = [...document.slots].sort((a, b) => a.drawOrder - b.drawOrder || a.name.localeCompare(b.name));
+  const index = ordered.findIndex((slot) => slot.name === slotName);
+  if (index < 0) {
+    return ordered[ordered.length - 1]?.name ?? null;
+  }
+
+  return ordered[Math.min(ordered.length - 1, index + 1)]?.name ?? null;
+}
+
+function getAttachmentImageName(attachment: Suwol2DAttachment): string {
+  return attachment.type === 'clipping' ? '' : attachment.image;
+}
+
+function getMeshBounds(vertices: Array<{ x: number; y: number }>): { minX: number; maxX: number; minY: number; maxY: number; width: number; height: number } | null {
   if (vertices.length === 0) {
     return null;
   }
@@ -5691,6 +6033,10 @@ function getMeshBounds(vertices: Suwol2DMeshVertex[]): { minX: number; maxX: num
     width: Math.max(0.001, maxX - minX),
     height: Math.max(0.001, maxY - minY)
   };
+}
+
+function getClippingBounds(vertices: Array<{ x: number; y: number }>) {
+  return getMeshBounds(vertices);
 }
 
 function chunkTriangleIndices(triangles: number[]): number[][] {
@@ -5873,6 +6219,69 @@ function drawMeshPreview(
   }
 }
 
+function drawClippingPreview(
+  context: CanvasRenderingContext2D,
+  attachment: Suwol2DClippingAttachment,
+  transform: AttachmentCanvasTransform,
+  selected: boolean,
+  selectedVertices: Set<number> = new Set()
+) {
+  const points = getClippingCanvasPoints(attachment, transform);
+  if (points.length === 0) {
+    return;
+  }
+
+  context.save();
+  context.lineWidth = selected ? 3 : 2;
+  context.strokeStyle = selected ? '#f2b84b' : '#f59e0b';
+  context.fillStyle = 'rgba(245, 158, 11, 0.12)';
+  context.setLineDash([8, 5]);
+  context.beginPath();
+  context.moveTo(points[0].x, points[0].y);
+  for (let index = 1; index < points.length; index += 1) {
+    context.lineTo(points[index].x, points[index].y);
+  }
+  context.closePath();
+  context.fill();
+  context.stroke();
+  context.setLineDash([]);
+
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    const vertexSelected = selectedVertices.has(index);
+    context.beginPath();
+    context.arc(point.x, point.y, vertexSelected ? 7 : selected ? 5 : 4, 0, Math.PI * 2);
+    context.fillStyle = vertexSelected ? '#f2b84b' : selected ? '#f59e0b' : '#facc15';
+    context.fill();
+    if (vertexSelected) {
+      context.lineWidth = 2;
+      context.strokeStyle = '#ffffff';
+      context.stroke();
+    }
+  }
+  context.restore();
+}
+
+function getClippingCanvasPoints(attachment: Suwol2DClippingAttachment, transform: AttachmentCanvasTransform): Point2D[] {
+  return (attachment.clippingVertices ?? [])
+    .filter((vertex) => Number.isFinite(vertex.x) && Number.isFinite(vertex.y))
+    .map((vertex) => attachmentLocalToCanvas(vertex, transform));
+}
+
+function applyCanvasClipPath(context: CanvasRenderingContext2D, points: Point2D[]): void {
+  if (points.length < 3) {
+    return;
+  }
+
+  context.beginPath();
+  context.moveTo(points[0].x, points[0].y);
+  for (let index = 1; index < points.length; index += 1) {
+    context.lineTo(points[index].x, points[index].y);
+  }
+  context.closePath();
+  context.clip();
+}
+
 function tintRegionPreview(
   context: CanvasRenderingContext2D,
   color: { r: number; g: number; b: number; a: number },
@@ -6003,6 +6412,13 @@ function normalizeSelection(selection: Selection | null, document: Suwol2DDocume
   if (selection.type === 'meshVertex') {
     const attachment = collectSkinAttachments(document).find((candidate) => candidate.name === selection.attachment);
     return attachment?.type === 'mesh' && selection.vertex >= 0 && selection.vertex < attachment.vertices.length
+      ? selection
+      : null;
+  }
+
+  if (selection.type === 'clippingVertex') {
+    const attachment = collectSkinAttachments(document).find((candidate) => candidate.name === selection.attachment);
+    return attachment?.type === 'clipping' && selection.vertex >= 0 && selection.vertex < attachment.clippingVertices.length
       ? selection
       : null;
   }
@@ -6160,10 +6576,12 @@ function getPreviewWorldBounds(
         { x: attachment.width / 2, y: attachment.height / 2 },
         { x: -attachment.width / 2, y: attachment.height / 2 }
       ]
-      : getDeformedPreviewVertices(
+      : attachment.type === 'mesh'
+        ? getDeformedPreviewVertices(
         attachment,
         sampleDeformOffsets(animation, attachment.slot, attachment.name, attachment.vertices.length, time)
-      );
+        )
+        : attachment.clippingVertices;
 
     for (const point of localPoints) {
       const scaledX = point.x * scaleX;
@@ -6206,9 +6624,11 @@ function estimateBoneLength(document: Suwol2DDocument, boneName: string): number
       return round(Math.max(attachment.width, attachment.height));
     }
 
-    const bounds = getMeshBounds(attachment.vertices);
-    if (bounds) {
-      return round(Math.max(bounds.width, bounds.height));
+    if (attachment.type === 'mesh') {
+      const bounds = getMeshBounds(attachment.vertices);
+      if (bounds) {
+        return round(Math.max(bounds.width, bounds.height));
+      }
     }
   }
 

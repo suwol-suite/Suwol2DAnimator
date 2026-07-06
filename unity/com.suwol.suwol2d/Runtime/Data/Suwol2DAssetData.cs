@@ -97,7 +97,9 @@ namespace Suwol.Suwol2D
         public float height = 1f;
         public float scaleX = 1f;
         public float scaleY = 1f;
+        public string endSlot = string.Empty;
         public Suwol2DMeshVertexData[] vertices = new Suwol2DMeshVertexData[0];
+        public Suwol2DClippingVertexData[] clippingVertices = new Suwol2DClippingVertexData[0];
         public int[] triangles = new int[0];
         public Suwol2DVertexWeightData[] weights = new Suwol2DVertexWeightData[0];
     }
@@ -109,6 +111,13 @@ namespace Suwol.Suwol2D
         public float y;
         public float u;
         public float v;
+    }
+
+    [Serializable]
+    public sealed class Suwol2DClippingVertexData
+    {
+        public float x;
+        public float y;
     }
 
     [Serializable]

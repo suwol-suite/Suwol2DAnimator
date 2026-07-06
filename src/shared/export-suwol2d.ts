@@ -13,6 +13,8 @@ import type {
   Suwol2DDeformTimeline,
   Suwol2DDrawOrderKey,
   Suwol2DEventKey,
+  Suwol2DClippingAttachment,
+  Suwol2DClippingVertex,
   Suwol2DMeshAttachment,
   Suwol2DMeshVertex,
   Suwol2DRegionAttachment,
@@ -115,6 +117,10 @@ function cleanAttachment(attachment: Suwol2DAttachment): Suwol2DAttachment {
     return cleanMeshAttachment(attachment);
   }
 
+  if (attachment.type === 'clipping') {
+    return cleanClippingAttachment(attachment);
+  }
+
   return cleanRegionAttachment(attachment);
 }
 
@@ -123,7 +129,7 @@ function cleanSkins(document: Suwol2DDocument): Suwol2DSkin[] {
     .map((skin) => ({
       name: skin.name.trim(),
       attachments: skin.attachments
-        .filter((attachment) => attachment.type === 'region' || attachment.type === 'mesh')
+        .filter((attachment) => attachment.type === 'region' || attachment.type === 'mesh' || attachment.type === 'clipping')
         .map(cleanAttachment)
         .sort((a, b) => a.slot.localeCompare(b.slot) || a.name.localeCompare(b.name))
     }))
@@ -133,7 +139,7 @@ function cleanSkins(document: Suwol2DDocument): Suwol2DSkin[] {
     skins.unshift({
       name: defaultSkinName,
       attachments: document.attachments
-        .filter((attachment) => attachment.type === 'region' || attachment.type === 'mesh')
+        .filter((attachment) => attachment.type === 'region' || attachment.type === 'mesh' || attachment.type === 'clipping')
         .map(cleanAttachment)
         .sort((a, b) => a.slot.localeCompare(b.slot) || a.name.localeCompare(b.name))
     });
@@ -165,7 +171,7 @@ function collectExportAttachments(skins: Suwol2DSkin[], legacyAttachments: Suwol
   }
 
   for (const attachment of legacyAttachments) {
-    if (attachment.type === 'region' || attachment.type === 'mesh') {
+    if (attachment.type === 'region' || attachment.type === 'mesh' || attachment.type === 'clipping') {
       addAttachment(cleanAttachment(attachment));
     }
   }
@@ -213,6 +219,29 @@ function cleanMeshVertex(vertex: Suwol2DMeshVertex): Suwol2DMeshVertex {
     y: safeNumber(vertex.y, 0),
     u: safeNumber(vertex.u, 0),
     v: safeNumber(vertex.v, 0)
+  };
+}
+
+function cleanClippingAttachment(attachment: Suwol2DClippingAttachment): Suwol2DClippingAttachment {
+  const endSlot = attachment.endSlot?.trim() || null;
+  return {
+    name: attachment.name.trim(),
+    slot: attachment.slot,
+    type: 'clipping',
+    ...(endSlot ? { endSlot } : {}),
+    x: safeNumber(attachment.x, 0),
+    y: safeNumber(attachment.y, 0),
+    rotation: safeNumber(attachment.rotation, 0),
+    scaleX: safeNumber(attachment.scaleX, 1),
+    scaleY: safeNumber(attachment.scaleY, 1),
+    clippingVertices: (attachment.clippingVertices ?? []).map(cleanClippingVertex)
+  };
+}
+
+function cleanClippingVertex(vertex: Suwol2DClippingVertex): Suwol2DClippingVertex {
+  return {
+    x: safeNumber(vertex.x, 0),
+    y: safeNumber(vertex.y, 0)
   };
 }
 
@@ -530,7 +559,7 @@ function resolveBoneLength(bone: Suwol2DBone, document: Suwol2DDocument | undefi
       if (length > 0) {
         return length;
       }
-    } else if (attachment.vertices.length > 0) {
+    } else if (attachment.type === 'mesh' && attachment.vertices.length > 0) {
       let minX = attachment.vertices[0].x;
       let maxX = attachment.vertices[0].x;
       let minY = attachment.vertices[0].y;

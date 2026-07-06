@@ -13,11 +13,14 @@ namespace Suwol.Suwol2D
             public GameObject gameObject;
             public Mesh mesh;
             public Material material;
+            public Suwol2DResolvedAtlasRegion atlasRegion;
+            public bool clipped;
         }
 
         private readonly List<SlotView> views = new List<SlotView>();
         private readonly Dictionary<string, SlotView> viewsBySlot = new Dictionary<string, SlotView>();
         private readonly HashSet<string> missingTextureWarnings = new HashSet<string>();
+        private Suwol2DClippingContext clippingContext;
 
         public int ViewCount
         {
@@ -122,8 +125,22 @@ namespace Suwol.Suwol2D
                     continue;
                 }
 
-                ApplyViewTransform(view);
+                Vector2[] clipPolygon;
+                if (clippingContext != null && clippingContext.TryGetClip(view.slot.Name, out clipPolygon))
+                {
+                    UpdateClippedRegion(view, clipPolygon);
+                }
+                else
+                {
+                    ResetRegionMeshIfClipped(view);
+                    ApplyViewTransform(view);
+                }
             }
+        }
+
+        public void ApplyClippingContext(Suwol2DClippingContext context)
+        {
+            clippingContext = context;
         }
 
         public void ApplyDrawOrder(Dictionary<string, int> drawOrders)
@@ -196,6 +213,7 @@ namespace Suwol.Suwol2D
             views.Clear();
             viewsBySlot.Clear();
             missingTextureWarnings.Clear();
+            clippingContext = null;
         }
 
         private static SlotView CreateSlotView(
@@ -228,7 +246,8 @@ namespace Suwol.Suwol2D
                 cacheKey = cacheKey,
                 gameObject = viewObject,
                 mesh = mesh,
-                material = material
+                material = material,
+                atlasRegion = atlasRegion
             };
         }
 
@@ -308,22 +327,101 @@ namespace Suwol.Suwol2D
 
         private static Mesh CreateQuadMesh(float width, float height, Suwol2DResolvedAtlasRegion atlasRegion)
         {
-            var halfWidth = width * 0.5f;
-            var halfHeight = height * 0.5f;
             var mesh = new Mesh();
             mesh.name = "Suwol2D Region Quad";
-            mesh.vertices = new[]
+            SetQuadMesh(mesh, width, height, atlasRegion);
+            return mesh;
+        }
+
+        private static void SetQuadMesh(Mesh mesh, float width, float height, Suwol2DResolvedAtlasRegion atlasRegion)
+        {
+            if (mesh == null)
+            {
+                return;
+            }
+
+            mesh.Clear();
+            mesh.vertices = CreateQuadVertices(width, height);
+            mesh.uv = CreateQuadUv(atlasRegion);
+            mesh.triangles = CreateQuadTriangles();
+            mesh.RecalculateBounds();
+            mesh.RecalculateNormals();
+        }
+
+        private static Vector3[] CreateQuadVertices(float width, float height)
+        {
+            var halfWidth = width * 0.5f;
+            var halfHeight = height * 0.5f;
+            return new[]
             {
                 new Vector3(-halfWidth, -halfHeight, 0f),
                 new Vector3(-halfWidth, halfHeight, 0f),
                 new Vector3(halfWidth, halfHeight, 0f),
                 new Vector3(halfWidth, -halfHeight, 0f)
             };
-            mesh.uv = CreateQuadUv(atlasRegion);
-            mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
-            mesh.RecalculateBounds();
-            mesh.RecalculateNormals();
-            return mesh;
+        }
+
+        private static int[] CreateQuadTriangles()
+        {
+            return new[] { 0, 1, 2, 0, 2, 3 };
+        }
+
+        private static void ResetRegionMeshIfClipped(SlotView view)
+        {
+            if (view == null || view.mesh == null || !view.clipped)
+            {
+                return;
+            }
+
+            SetQuadMesh(view.mesh, view.attachment.Width, view.attachment.Height, view.atlasRegion);
+            view.clipped = false;
+        }
+
+        private static void UpdateClippedRegion(SlotView view, Vector2[] clipPolygon)
+        {
+            if (view == null || view.mesh == null || view.slot == null || view.slot.Bone == null || view.attachment == null)
+            {
+                return;
+            }
+
+            var sourceVertices = CreateQuadVertices(view.attachment.Width, view.attachment.Height);
+            var worldVertices = new Vector3[sourceVertices.Length];
+            for (var i = 0; i < sourceVertices.Length; i++)
+            {
+                var source = sourceVertices[i];
+                var transformed = TransformAttachmentPoint(view.slot, view.attachment, new Vector2(source.x, source.y));
+                worldVertices[i] = new Vector3(transformed.x, transformed.y, -0.001f * view.gameObject.transform.GetSiblingIndex());
+            }
+
+            Vector3[] clippedVertices;
+            Vector2[] clippedUv;
+            int[] clippedTriangles;
+            if (Suwol2DClipper.ClipMesh(
+                worldVertices,
+                CreateQuadUv(view.atlasRegion),
+                CreateQuadTriangles(),
+                clipPolygon,
+                out clippedVertices,
+                out clippedUv,
+                out clippedTriangles))
+            {
+                view.mesh.Clear();
+                view.mesh.vertices = clippedVertices;
+                view.mesh.uv = clippedUv;
+                view.mesh.triangles = clippedTriangles;
+                view.mesh.RecalculateBounds();
+                view.mesh.RecalculateNormals();
+            }
+            else
+            {
+                view.mesh.Clear();
+            }
+
+            var transform = view.gameObject.transform;
+            transform.localPosition = Vector3.zero;
+            transform.localRotation = Quaternion.identity;
+            transform.localScale = Vector3.one;
+            view.clipped = true;
         }
 
         private static string CreateCacheKey(
@@ -506,6 +604,21 @@ namespace Suwol.Suwol2D
             }
 
             return normalized;
+        }
+
+        private static Vector2 TransformAttachmentPoint(Suwol2DSlot slot, Suwol2DAttachment attachment, Vector2 localPoint)
+        {
+            var boneWorld = slot.Bone.WorldTransform;
+            var offset = new Vector2(
+                attachment.X * boneWorld.scaleX,
+                attachment.Y * boneWorld.scaleY);
+            offset = Rotate(offset, boneWorld.rotation);
+
+            var scaled = new Vector2(
+                localPoint.x * boneWorld.scaleX * attachment.ScaleX,
+                localPoint.y * boneWorld.scaleY * attachment.ScaleY);
+            var rotated = Rotate(scaled, boneWorld.rotation + attachment.Rotation);
+            return new Vector2(boneWorld.x + offset.x + rotated.x, boneWorld.y + offset.y + rotated.y);
         }
 
         private static Vector2 Rotate(Vector2 value, float degrees)

@@ -24,7 +24,8 @@ namespace Suwol.Suwol2D.Editor.Tests
             "AnimationTimelinesV8",
             "AnimationMixingStateMachineV10",
             "TimelineUsabilityV11",
-            "CurveInterpolationV20"
+            "CurveInterpolationV20",
+            "ClippingMaskV21"
         };
 
         public static void RunAll()
@@ -48,7 +49,7 @@ namespace Suwol.Suwol2D.Editor.Tests
                 ValidateAtlasLookupApi();
                 ValidateEventDispatcher(jsonFiles);
 
-                Debug.Log("Suwol2D Runtime Stability v9 + Animation Mixing State Machine v10 + Timeline Usability v11 + Curve Interpolation v20 smoke tests passed.");
+                Debug.Log("Suwol2D Runtime Stability v9 + Animation Mixing State Machine v10 + Timeline Usability v11 + Curve Interpolation v20 + Clipping Mask v21 smoke tests passed.");
             }
             catch (Exception exception)
             {
@@ -176,6 +177,7 @@ namespace Suwol.Suwol2D.Editor.Tests
                     ValidateAnimationMixingStateMachineApi(character, data, jsonFiles[i]);
                     ValidateTimelineUsabilityDuration(data, jsonFiles[i]);
                     ValidateCurveInterpolationApi(character, data, jsonFiles[i]);
+                    ValidateClippingMaskApi(character, data, jsonFiles[i]);
                     var countBefore = GetRendererViewCount(character);
                     for (var repeat = 0; repeat < 5; repeat++)
                     {
@@ -362,6 +364,64 @@ namespace Suwol.Suwol2D.Editor.Tests
             var arm = character.Skeleton != null ? character.Skeleton.FindBone("arm") : null;
             Assert(arm != null, "v20 sample should include arm bone: " + label);
             Assert(Mathf.Abs(arm.LocalTransform.rotation - -48f) < 0.001f, "stepped rotate should hold the previous key before the next key: " + label);
+            AssertNoNaNTransforms(character.gameObject);
+        }
+
+        private static void ValidateClippingMaskApi(Suwol2DCharacter character, Suwol2DAssetData data, string label)
+        {
+            if (!label.Replace('\\', '/').Contains("/ClippingMaskV21/"))
+            {
+                return;
+            }
+
+            var clipping = FirstClippingAttachment(data);
+            Assert(clipping != null, "v21 sample should include a clipping attachment: " + label);
+            Assert(clipping.name == "body_mask", "v21 clipping attachment should be body_mask: " + label);
+            Assert(clipping.slot == "mask_slot", "v21 clipping attachment should live on mask_slot: " + label);
+            Assert(clipping.endSlot == "arm_slot", "v21 clipping attachment should end on arm_slot: " + label);
+            Assert(clipping.clippingVertices != null && clipping.clippingVertices.Length >= 3, "v21 clipping polygon should include vertices: " + label);
+
+            var sourceVertices = new[]
+            {
+                new Vector3(-1f, -1f, 0f),
+                new Vector3(1f, -1f, 0f),
+                new Vector3(1f, 1f, 0f),
+                new Vector3(-1f, 1f, 0f)
+            };
+            var sourceUv = new[]
+            {
+                new Vector2(0f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(1f, 1f),
+                new Vector2(0f, 1f)
+            };
+            var sourceTriangles = new[] { 0, 1, 2, 0, 2, 3 };
+            var clipPolygon = new[]
+            {
+                new Vector2(-0.5f, -0.5f),
+                new Vector2(0.5f, -0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(-0.5f, 0.5f)
+            };
+
+            Vector3[] clippedVertices;
+            Vector2[] clippedUv;
+            int[] clippedTriangles;
+            Assert(
+                Suwol2DClipper.ClipMesh(sourceVertices, sourceUv, sourceTriangles, clipPolygon, out clippedVertices, out clippedUv, out clippedTriangles),
+                "Suwol2DClipper should clip a quad against a smaller convex polygon.");
+            Assert(clippedVertices.Length > 0, "Suwol2DClipper should output vertices.");
+            Assert(clippedUv.Length == clippedVertices.Length, "Suwol2DClipper should preserve UV count.");
+            Assert(clippedTriangles.Length > 0 && clippedTriangles.Length % 3 == 0, "Suwol2DClipper should output triangles.");
+            for (var i = 0; i < clippedVertices.Length; i++)
+            {
+                Assert(clippedVertices[i].x >= -0.501f && clippedVertices[i].x <= 0.501f, "clipped vertex x should stay inside mask.");
+                Assert(clippedVertices[i].y >= -0.501f && clippedVertices[i].y <= 0.501f, "clipped vertex y should stay inside mask.");
+            }
+
+            character.Play("walk");
+            StepCharacter(character, 0.1f);
+            Assert(character.GetCurrentAnimationName() == "walk", "v21 sample walk animation should play: " + label);
             AssertNoNaNTransforms(character.gameObject);
         }
 
@@ -747,6 +807,55 @@ namespace Suwol.Suwol2D.Editor.Tests
                 if (skin != null && skin.attachments != null && skin.attachments.Length > 0)
                 {
                     return skin.attachments[0];
+                }
+            }
+
+            return null;
+        }
+
+        private static Suwol2DAttachmentData FirstClippingAttachment(Suwol2DAssetData data)
+        {
+            if (data == null)
+            {
+                return null;
+            }
+
+            var attachment = FirstClippingAttachment(data.attachments);
+            if (attachment != null)
+            {
+                return attachment;
+            }
+
+            if (data.skins == null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < data.skins.Length; i++)
+            {
+                attachment = FirstClippingAttachment(data.skins[i] != null ? data.skins[i].attachments : null);
+                if (attachment != null)
+                {
+                    return attachment;
+                }
+            }
+
+            return null;
+        }
+
+        private static Suwol2DAttachmentData FirstClippingAttachment(Suwol2DAttachmentData[] attachments)
+        {
+            if (attachments == null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < attachments.Length; i++)
+            {
+                var attachment = attachments[i];
+                if (attachment != null && attachment.type == Suwol2DAttachment.ClippingType)
+                {
+                    return attachment;
                 }
             }
 

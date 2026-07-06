@@ -8,6 +8,7 @@ const repoRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const {
   createAnimationMixingStateMachineSampleDocument,
   createAnimationTimelinesSampleDocument,
+  createClippingSampleDocument,
   createDeformSampleDocument,
   createIkSampleDocument,
   createInterpolationSampleDocument,
@@ -198,6 +199,23 @@ await validateSuwol2DPair({
   textureNames: ['body.png', 'arm.png', 'sword.png', 'axe.png']
 });
 
+const clippingExport = await validateSamplePair({
+  label: 'clipping mask sample',
+  document: createClippingSampleDocument(importedImages),
+  samplePath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'ClippingMaskV21', 'sample_clipping_mask.suwol2d.json'),
+  expectedAttachmentTypes: ['region', 'mesh', 'clipping'],
+  expectedAnimationNames: ['walk', 'attack'],
+  expectedTextureNames: ['body.png', 'arm.png', 'sword.png', 'axe.png'],
+  compareExportToSample: true
+});
+validateClippingSample(clippingExport);
+await validateSuwol2DPair({
+  samplePath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'ClippingMaskV21', 'sample_clipping_mask.suwol2d'),
+  debugJsonPath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'ClippingMaskV21', 'sample_clipping_mask.suwol2d.json'),
+  texturesPath: join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~', 'ClippingMaskV21', 'Textures'),
+  textureNames: ['body.png', 'arm.png', 'sword.png', 'axe.png']
+});
+
 const atlasPack = packAtlasImages(
   importedImages.slice(0, 2).map((image) => ({
     name: image.name,
@@ -257,6 +275,9 @@ for (const field of [
   'public Suwol2DEventKeyData[] events',
   'public Suwol2DStateMachineData[] stateMachines',
   'public int drawOrder',
+  'public string endSlot',
+  'public Suwol2DClippingVertexData[] clippingVertices',
+  'public sealed class Suwol2DClippingVertexData',
   'public Suwol2DMeshVertexData[] vertices',
   'public int[] triangles',
   'public Suwol2DVertexWeightData[] weights',
@@ -333,6 +354,8 @@ for (const field of [
   'public bool SetTrigger',
   'public void ResetTrigger',
   'Suwol2DAtlasLookup',
+  'Suwol2DClippingContext',
+  'BuildClippingContext',
   'public event Action<Suwol2DAnimationEvent> AnimationEvent'
 ]) {
   assert.ok(characterRuntime.includes(field), `Suwol2DCharacter is missing runtime skin API: ${field}`);
@@ -352,7 +375,9 @@ for (const field of [
   'ValidateAtlases',
   'CollectAtlasImageNames',
   'SetStateMachineSummary',
-  'SetInterpolationSummary'
+  'SetInterpolationSummary',
+  'ValidateClippingAttachment',
+  'SetClippingSummary'
 ]) {
   assert.ok(importerRuntime.includes(field), `Suwol2D importer is missing expected implementation marker: ${field}`);
 }
@@ -384,12 +409,30 @@ const atlasLookupRuntime = await readFile(
   join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Runtime', 'Rendering', 'Suwol2DAtlasLookup.cs'),
   'utf8'
 );
+const clippingContextRuntime = await readFile(
+  join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Runtime', 'Rendering', 'Suwol2DClippingContext.cs'),
+  'utf8'
+);
+const clipperRuntime = await readFile(
+  join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Runtime', 'Rendering', 'Suwol2DClipper.cs'),
+  'utf8'
+);
 for (const field of ['public void Sync', 'public int ViewCount', 'CreateCacheKey', 'DestroyObject', 'Suwol2DAtlasLookup', 'CreateAtlasCacheKey']) {
   assert.ok(regionRendererRuntime.includes(field), `Suwol2DRegionRenderer is missing v9 renderer cache marker: ${field}`);
   assert.ok(meshRendererRuntime.includes(field), `Suwol2DMeshAttachmentRenderer is missing v9 renderer cache marker: ${field}`);
 }
+for (const field of ['ApplyClippingContext', 'Suwol2DClipper.ClipMesh']) {
+  assert.ok(regionRendererRuntime.includes(field), `Suwol2DRegionRenderer is missing clipping marker: ${field}`);
+  assert.ok(meshRendererRuntime.includes(field), `Suwol2DMeshAttachmentRenderer is missing clipping marker: ${field}`);
+}
 for (const field of ['public sealed class Suwol2DAtlasLookup', 'TryResolve', 'Suwol2DResolvedAtlasRegion', 'NormalizeTextureName']) {
   assert.ok(atlasLookupRuntime.includes(field), `Suwol2DAtlasLookup is missing expected atlas API: ${field}`);
+}
+for (const field of ['public sealed class Suwol2DClippingContext', 'SetClip', 'TryGetClip']) {
+  assert.ok(clippingContextRuntime.includes(field), `Suwol2DClippingContext is missing expected API: ${field}`);
+}
+for (const field of ['public static class Suwol2DClipper', 'ClipMesh', 'ClipPolygon', 'Intersect']) {
+  assert.ok(clipperRuntime.includes(field), `Suwol2DClipper is missing expected API: ${field}`);
 }
 
 const unitySmokeScript = await readFile(join(repoRoot, 'scripts', 'unity-smoke-v9.mjs'), 'utf8');
@@ -401,7 +444,7 @@ const unitySmokeHelper = await readFile(
   join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Editor', 'Tests', 'Suwol2DRuntimeSmokeTests.cs'),
   'utf8'
 );
-for (const field of ['RunAll', 'ValidateImporterReimportRecovery', 'ValidateMalformedRuntimeJson', 'ValidateAnimationMixingStateMachineApi', 'ValidateAtlasLookupApi', 'ValidateCurveInterpolationApi', 'Renderer view count']) {
+for (const field of ['RunAll', 'ValidateImporterReimportRecovery', 'ValidateMalformedRuntimeJson', 'ValidateAnimationMixingStateMachineApi', 'ValidateAtlasLookupApi', 'ValidateCurveInterpolationApi', 'ValidateClippingMaskApi', 'Renderer view count']) {
   assert.ok(unitySmokeHelper.includes(field), `Unity smoke helper is missing expected v9 marker: ${field}`);
 }
 
@@ -419,6 +462,7 @@ console.log(`- animation mixing state machine sample: ${animationMixingStateMach
 console.log(`- timeline usability sample durations: ${timelineUsabilityExport.animations.map((animation) => animation.duration).join(', ')}`);
 console.log(`- atlas sample regions: ${atlasPack.atlas.regions.map((region) => region.name).join(', ')}`);
 console.log(`- curve interpolation sample presets: ${collectInterpolationValues(interpolationExport).join(', ')}`);
+console.log(`- clipping sample vertices: ${clippingExport.attachments.find((attachment) => attachment.type === 'clipping').clippingVertices.length}`);
 
 async function validateAllUnityPackageSamples() {
   const samplesRoot = join(repoRoot, 'unity', 'com.suwol.suwol2d', 'Samples~');
@@ -426,8 +470,8 @@ async function validateAllUnityPackageSamples() {
   const jsonFiles = files.filter((file) => file.endsWith('.suwol2d.json'));
   const suwol2dFiles = files.filter((file) => file.endsWith('.suwol2d'));
 
-  assert.ok(jsonFiles.length >= 11, 'Unity package should include all v0-v20 .suwol2d.json samples.');
-  assert.ok(suwol2dFiles.length >= 5, 'Unity package should include importer .suwol2d samples.');
+  assert.ok(jsonFiles.length >= 12, 'Unity package should include all v0-v21 .suwol2d.json samples.');
+  assert.ok(suwol2dFiles.length >= 6, 'Unity package should include importer .suwol2d samples.');
 
   for (const jsonFile of jsonFiles) {
     const document = JSON.parse(await readFile(jsonFile, 'utf8'));
@@ -514,6 +558,7 @@ async function validateReleaseReadinessMetadata() {
     'docs/localization-i18n-v15.md',
     'docs/atlas-packing-texture-atlas-v17.md',
     'docs/curve-interpolation-editor-v20.md',
+    'docs/clipping-mask-v21.md',
     'src/shared/i18n/types.ts',
     'src/shared/i18n/locales.ts',
     'src/shared/i18n/translate.ts',
@@ -525,6 +570,7 @@ async function validateReleaseReadinessMetadata() {
     'unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md',
     'unity/com.suwol.suwol2d/Documentation~/atlas-packing-texture-atlas-v17.md',
     'unity/com.suwol.suwol2d/Documentation~/curve-interpolation-editor-v20.md',
+    'unity/com.suwol.suwol2d/Documentation~/clipping-mask-v21.md',
     'scripts/generate-icons.mjs',
     'scripts/create-checksums.mjs',
     'scripts/zip-unity-package.mjs',
@@ -549,7 +595,9 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(rootReadme.includes('docs/localization-i18n-v15.md'), 'README should link v15 localization docs.');
   assert.ok(rootReadme.includes('docs/atlas-packing-texture-atlas-v17.md'), 'README should link v17 atlas docs.');
   assert.ok(rootReadme.includes('docs/curve-interpolation-editor-v20.md'), 'README should link v20 curve interpolation docs.');
+  assert.ok(rootReadme.includes('docs/clipping-mask-v21.md'), 'README should link v21 clipping docs.');
   assert.ok(rootReadme.includes('Optional PNG texture atlas export'), 'README should document atlas export support.');
+  assert.ok(rootReadme.includes('Convex polygon clipping attachments'), 'README should document clipping support.');
   assert.ok(rootReadme.includes('npm.cmd run release:unity-package'), 'README should document Unity package zip command.');
   assert.ok(rootReadme.includes('docs/manual-qa-dogfooding-v13.md'), 'README should link v13 manual QA docs.');
   assert.ok(releaseChecklist.includes('.github/workflows/release-linux-zip.yml'), 'Release checklist should include Linux ZIP workflow checks.');
@@ -567,6 +615,8 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(unityDocsIndex.includes('Optional texture atlas UV lookup'), 'Unity docs index should document atlas UV lookup.');
   assert.ok(unityDocsIndex.includes('curve-interpolation-editor-v20.md'), 'Unity docs index should link v20 curve interpolation docs.');
   assert.ok(unityDocsIndex.includes('Keyframe interpolation presets'), 'Unity docs index should document interpolation presets.');
+  assert.ok(unityDocsIndex.includes('clipping-mask-v21.md'), 'Unity docs index should link v21 clipping docs.');
+  assert.ok(unityDocsIndex.includes('Convex polygon clipping attachments'), 'Unity docs index should document clipping support.');
   for (const workflowMarker of [
     'name: Release Linux ZIP',
     'workflow_dispatch:',
@@ -625,6 +675,7 @@ async function validateReleaseReadinessMetadata() {
   assert.ok(unityDocsIndex.includes('Timeline Usability v11'), 'Unity docs index should list v11 sample.');
   assert.ok(unityDocsIndex.includes('packaging-release-readiness-v12.md'), 'Unity docs index should link v12 docs.');
   assert.ok(unityPackage.samples.some((sample) => sample.path === 'Samples~/TimelineUsabilityV11'), 'Unity package should list v11 sample.');
+  assert.ok(unityPackage.samples.some((sample) => sample.path === 'Samples~/ClippingMaskV21'), 'Unity package should list v21 sample.');
 }
 
 async function walkFiles(root) {
@@ -886,10 +937,12 @@ function validateRuntimeDocument(
 
   const textureNames = new Set(expectedTextureNames.map(normalizeTextureName));
   for (const attachment of document.attachments) {
-    assert.ok(
-      textureNames.has(normalizeTextureName(attachment.image)),
-      `${label} attachment image should match an exported texture name: ${attachment.image}`
-    );
+    if (attachment.type !== 'clipping') {
+      assert.ok(
+        textureNames.has(normalizeTextureName(attachment.image)),
+        `${label} attachment image should match an exported texture name: ${attachment.image}`
+      );
+    }
   }
 
   const animationNames = new Set(document.animations.map((animation) => animation.name));
@@ -989,6 +1042,25 @@ function validateSkinSample(document) {
   assert.ok(defaultSkin.attachments.some((attachment) => attachment.slot === 'arm_slot' && attachment.name === 'arm'), 'default skin should include arm on arm_slot');
   assert.ok(armorSkin.attachments.some((attachment) => attachment.slot === 'body_slot' && attachment.name === 'body_armor'), 'armor skin should include body_armor on body_slot');
   assert.ok(armorSkin.attachments.some((attachment) => attachment.slot === 'arm_slot' && attachment.name === 'arm_armor'), 'armor skin should include arm_armor on arm_slot');
+}
+
+function validateClippingSample(document) {
+  const clippingAttachment = document.attachments.find((attachment) => attachment.type === 'clipping');
+  assert.ok(clippingAttachment, 'clipping sample should include a clipping attachment');
+  assert.equal(clippingAttachment.name, 'body_mask', 'clipping sample should include body_mask clipping attachment');
+  assert.equal(clippingAttachment.slot, 'mask_slot', 'body_mask should live on mask_slot');
+  assert.equal(clippingAttachment.endSlot, 'arm_slot', 'body_mask should clip through arm_slot');
+  assert.ok(document.slots[0]?.name === 'mask_slot', 'mask_slot should start the draw order');
+
+  const walk = document.animations.find((animation) => animation.name === 'walk');
+  assert.ok(walk, 'clipping sample should include walk animation');
+  const maskTimeline = walk.attachments?.find((timeline) => timeline.slot === 'mask_slot');
+  assert.ok(maskTimeline, 'walk should include a mask_slot attachment timeline');
+  assert.deepEqual(
+    maskTimeline.keys.map((key) => key.attachment),
+    ['body_mask', null, 'body_mask'],
+    'walk should toggle the clipping attachment off and back on'
+  );
 }
 
 async function validateImporterSample({ samplePath, debugJsonPath, texturesPath }) {
@@ -1102,7 +1174,9 @@ function validateStateMachines(stateMachines, document, label) {
 function validateAtlasDocument(document, label) {
   assert.ok(Array.isArray(document.atlases), `${label} atlases should be an array`);
   assert.ok(document.atlases.length > 0, `${label} should include atlas metadata`);
-  const attachmentImages = new Set(document.attachments.map((attachment) => normalizeTextureName(attachment.image)));
+  const attachmentImages = new Set(document.attachments.flatMap((attachment) => (
+    attachment.type !== 'clipping' ? [normalizeTextureName(attachment.image)] : []
+  )));
 
   for (const atlas of document.atlases) {
     expectExactKeys(atlas, ['name', 'image', 'width', 'height', 'regions'], `${label} atlas`);
@@ -1164,7 +1238,70 @@ function validateAttachment(attachment, label, bones) {
     return;
   }
 
+  if (attachment.type === 'clipping') {
+    expectExactKeys(
+      attachment,
+      ['name', 'slot', 'type', 'endSlot', 'x', 'y', 'rotation', 'scaleX', 'scaleY', 'clippingVertices'],
+      `${label} clipping attachment`
+    );
+    assertFiniteNumbers(attachment, ['x', 'y', 'rotation', 'scaleX', 'scaleY'], `${label} clipping attachment ${attachment.name}`);
+    validateClippingAttachment(attachment, label);
+    return;
+  }
+
   assert.fail(`${label} attachment has unsupported type: ${attachment.type}`);
+}
+
+function validateClippingAttachment(attachment, label) {
+  assert.ok(Array.isArray(attachment.clippingVertices), `${label} clipping vertices should be an array`);
+  assert.ok(attachment.clippingVertices.length >= 3, `${label} clipping polygon needs at least 3 vertices`);
+  assert.equal(typeof attachment.endSlot, 'string', `${label} clipping endSlot should be a string`);
+  assert.ok(attachment.endSlot.length > 0, `${label} clipping endSlot should not be empty in v21 samples`);
+
+  for (const vertex of attachment.clippingVertices) {
+    expectExactKeys(vertex, ['x', 'y'], `${label} clipping vertex`);
+    assertFiniteNumbers(vertex, ['x', 'y'], `${label} clipping vertex`);
+  }
+
+  const area = polygonArea(attachment.clippingVertices);
+  assert.ok(Math.abs(area) > 0.000001, `${label} clipping polygon should have non-zero area`);
+  assert.ok(isConvexPolygon(attachment.clippingVertices), `${label} clipping polygon should be convex`);
+}
+
+function polygonArea(vertices) {
+  let area = 0;
+  for (let index = 0; index < vertices.length; index += 1) {
+    const current = vertices[index];
+    const next = vertices[(index + 1) % vertices.length];
+    area += current.x * next.y - next.x * current.y;
+  }
+  return area * 0.5;
+}
+
+function isConvexPolygon(vertices) {
+  if (vertices.length < 4) {
+    return true;
+  }
+
+  let sign = 0;
+  for (let index = 0; index < vertices.length; index += 1) {
+    const previous = vertices[index];
+    const current = vertices[(index + 1) % vertices.length];
+    const next = vertices[(index + 2) % vertices.length];
+    const cross = (current.x - previous.x) * (next.y - current.y) -
+      (current.y - previous.y) * (next.x - current.x);
+    if (Math.abs(cross) <= 0.000001) {
+      continue;
+    }
+    const currentSign = Math.sign(cross);
+    if (sign === 0) {
+      sign = currentSign;
+    } else if (currentSign !== sign) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function validateMeshAttachment(attachment, label, bones) {

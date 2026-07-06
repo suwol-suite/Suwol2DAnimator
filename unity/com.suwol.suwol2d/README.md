@@ -33,7 +33,8 @@ The current package contains:
 - Animation Mixing / State Machine v10 importer report and demo menu support
 - explicit animation duration for editor/runtime playback
 - keyframe interpolation presets for transform, slot color, and deform timelines
-- Runtime MVP v0, Mesh Attachment v1, Weighted Mesh v2, Deform Timeline v3, IK Constraint v5, Skin Attachment Swap v6, Importer Prefab Workflow v7, Animation Timelines v8, Animation Mixing State Machine v10, Timeline Usability v11, and Curve Interpolation v20 samples
+- convex polygon clipping attachments and masks
+- Runtime MVP v0, Mesh Attachment v1, Weighted Mesh v2, Deform Timeline v3, IK Constraint v5, Skin Attachment Swap v6, Importer Prefab Workflow v7, Animation Timelines v8, Animation Mixing State Machine v10, Timeline Usability v11, Curve Interpolation v20, and Clipping Mask v21 samples
 
 See these docs for setup and demo instructions:
 
@@ -51,5 +52,6 @@ See these docs for setup and demo instructions:
 - `Documentation~/editor-timeline-usability-key-editing-v11.md`
 - `Documentation~/packaging-release-readiness-v12.md`
 - `Documentation~/curve-interpolation-editor-v20.md`
+- `Documentation~/clipping-mask-v21.md`
 
-Spine compatibility, clipping, animation layers, blend trees, additive animation, graph node editing, custom bezier handles, and full curve editors are intentionally outside the current scope.
+Spine compatibility, concave clipping, animation layers, blend trees, additive animation, graph node editing, custom bezier handles, and full curve editors are intentionally outside the current scope.

@@ -1,4 +1,10 @@
-import type { ImportedImage, Suwol2DDocument, Suwol2DMeshAttachment, Suwol2DVertexOffset } from '../../../../shared/suwol2d-format';
+import type {
+  ImportedImage,
+  Suwol2DClippingAttachment,
+  Suwol2DDocument,
+  Suwol2DMeshAttachment,
+  Suwol2DVertexOffset
+} from '../../../../shared/suwol2d-format';
 import { cloneAttachment, cloneAttachments, syncTopLevelAttachmentsFromSkins } from '../../../../shared/skins.ts';
 
 export function createSampleDocument(images: ImportedImage[]): Suwol2DDocument {
@@ -483,7 +489,7 @@ export function createSkinSampleDocument(images: ImportedImage[]): Suwol2DDocume
   const armBase = arm ?? document.attachments[1] ?? bodyBase;
   const bodyArmorImage = images.find((image) => image.name === 'body_armor') ?? images.find((image) => image.name === 'body') ?? images[0];
   const armArmorImage = images.find((image) => image.name === 'arm_armor') ?? images.find((image) => image.name === 'arm') ?? images[1] ?? images[0];
-  if (!bodyBase || !armBase) {
+  if (!bodyBase || !armBase || bodyBase.type === 'clipping' || armBase.type === 'clipping') {
     return document;
   }
 
@@ -815,7 +821,7 @@ export function createTimelineUsabilitySampleDocument(images: ImportedImage[]): 
 
   const armImage = images.find((image) => image.name === 'arm') ?? images[1] ?? images[0];
   const armRegion = document.attachments.find((attachment) => attachment.name === 'arm');
-  if (armRegion) {
+  if (armRegion && armRegion.type !== 'clipping') {
     const armMesh: Suwol2DMeshAttachment = {
       name: 'arm_timeline_mesh',
       slot: 'arm_slot',
@@ -1057,6 +1063,78 @@ export function createInterpolationSampleDocument(images: ImportedImage[]): Suwo
       }
     ]
   });
+
+  return withDefaultSkin(document);
+}
+
+export function createClippingSampleDocument(images: ImportedImage[]): Suwol2DDocument {
+  const document = createTimelineUsabilitySampleDocument(images);
+  document.name = 'sample_clipping_mask';
+
+  if (!document.slots.some((slot) => slot.name === 'mask_slot')) {
+    document.slots.unshift({
+      name: 'mask_slot',
+      bone: 'body',
+      attachment: 'body_mask',
+      drawOrder: 0
+    });
+  }
+  document.slots.forEach((slot) => {
+    if (slot.name === 'mask_slot') {
+      slot.drawOrder = 0;
+    } else {
+      slot.drawOrder += 1;
+    }
+  });
+
+  const clippingAttachment: Suwol2DClippingAttachment = {
+    name: 'body_mask',
+    slot: 'mask_slot',
+    type: 'clipping',
+    endSlot: 'arm_slot',
+    x: 0,
+    y: 0.05,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    clippingVertices: [
+      { x: -0.42, y: -0.58 },
+      { x: 0.3, y: -0.48 },
+      { x: 0.38, y: 0.46 },
+      { x: -0.34, y: 0.62 }
+    ]
+  };
+
+  document.attachments = document.attachments.filter((attachment) => attachment.name !== clippingAttachment.name);
+  document.attachments.unshift(clippingAttachment);
+
+  for (const animation of document.animations) {
+    animation.attachments ??= [];
+    const maskTimeline = animation.attachments.find((timeline) => timeline.slot === 'mask_slot');
+    const keys = animation.name === 'walk'
+      ? [
+        { time: 0, attachment: 'body_mask' },
+        { time: 0.6, attachment: null },
+        { time: 0.9, attachment: 'body_mask' }
+      ]
+      : [
+        { time: 0, attachment: 'body_mask' }
+      ];
+    if (maskTimeline) {
+      maskTimeline.keys = keys;
+    } else {
+      animation.attachments.unshift({ slot: 'mask_slot', keys });
+    }
+
+    for (const drawOrder of animation.drawOrders ?? []) {
+      if (!drawOrder.slots.some((slot) => slot.slot === 'mask_slot')) {
+        drawOrder.slots.unshift({ slot: 'mask_slot', drawOrder: 0 });
+      }
+      drawOrder.slots = drawOrder.slots
+        .map((slot) => slot.slot === 'mask_slot' ? slot : { ...slot, drawOrder: slot.drawOrder + 1 })
+        .sort((a, b) => a.drawOrder - b.drawOrder || a.slot.localeCompare(b.slot));
+    }
+  }
 
   return withDefaultSkin(document);
 }

@@ -68,6 +68,16 @@
       "displayName": "Timeline Usability v11",
       "description": "Sample .suwol2d importer asset, debug JSON, textures, explicit durations, and representative timeline key data.",
       "path": "Samples~/TimelineUsabilityV11"
+    },
+    {
+      "displayName": "Curve Interpolation v20",
+      "description": "Sample .suwol2d importer asset, debug JSON, textures, and interpolation preset data.",
+      "path": "Samples~/CurveInterpolationV20"
+    },
+    {
+      "displayName": "Clipping Mask v21",
+      "description": "Sample .suwol2d importer asset, debug JSON, textures, and convex clipping attachment data.",
+      "path": "Samples~/ClippingMaskV21"
     }
   ]
 }

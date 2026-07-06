@@ -77,6 +77,8 @@ namespace Suwol.Suwol2D.Editor
             EditorGUILayout.LabelField("Slots", report.SlotsCount.ToString());
             EditorGUILayout.LabelField("Skins", report.SkinsCount.ToString());
             EditorGUILayout.LabelField("Attachments", report.AttachmentsCount.ToString());
+            EditorGUILayout.LabelField("Clipping Attachments", report.ClippingAttachmentCount.ToString());
+            EditorGUILayout.LabelField("Clipping Vertices", report.ClippingVertexCount.ToString());
             EditorGUILayout.LabelField("Animations", report.AnimationsCount.ToString());
             EditorGUILayout.LabelField("IK Constraints", report.IkConstraintsCount.ToString());
             EditorGUILayout.LabelField("Attachment Timelines", report.AttachmentTimelineCount.ToString());

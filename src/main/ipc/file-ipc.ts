@@ -340,8 +340,11 @@ function normalizeLookupName(value: string): string {
 function collectReferencedImageNames(document: Suwol2DDocument): Set<string> {
   return new Set(
     [...document.attachments, ...collectSkinAttachments(document)]
-      .filter((attachment) => (attachment.type === 'region' || attachment.type === 'mesh') && attachment.image)
-      .map((attachment) => normalizeLookupName(attachment.image))
+      .flatMap((attachment) => (
+        (attachment.type === 'region' || attachment.type === 'mesh') && attachment.image
+          ? [normalizeLookupName(attachment.image)]
+          : []
+      ))
   );
 }
 
