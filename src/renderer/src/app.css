@@ -234,6 +234,62 @@ button:disabled {
   width: min(160px, 100%);
 }
 
+.update-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #2b333d;
+}
+
+.update-panel h3 {
+  margin: 0;
+  color: #8fd8cf;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.update-note,
+.update-status,
+.update-warning {
+  margin: 0;
+  color: #aab6bb;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.update-status {
+  padding: 8px;
+  border: 1px solid #303a45;
+  border-radius: 7px;
+  background: #111820;
+}
+
+.update-status-good {
+  border-color: #1f665d;
+  color: #8fd8cf;
+}
+
+.update-status-warning,
+.update-warning {
+  color: #f2d28b;
+}
+
+.update-release-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  color: #8fd8cf;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.update-release-link:hover {
+  color: #ffffff;
+}
+
 .status-line {
   min-width: 0;
   margin-left: 0;

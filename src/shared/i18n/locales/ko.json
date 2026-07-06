@@ -112,6 +112,33 @@
     "loadWarning": "언어 설정을 불러오지 못했습니다: {{message}}",
     "saveWarning": "언어 설정을 저장하지 못했습니다: {{message}}"
   },
+  "update": {
+    "title": "업데이트",
+    "currentVersion": "현재 버전",
+    "autoCheckOnStart": "자동 확인",
+    "checkNow": "업데이트 확인",
+    "checking": "업데이트 확인 중...",
+    "idle": "Linux ZIP 자동 업데이트는 토큰 없이 GitHub Releases를 확인합니다.",
+    "noUpdate": "사용 가능한 업데이트가 없습니다.",
+    "available": "새 버전 {{version}}을 사용할 수 있습니다.",
+    "download": "다운로드",
+    "downloading": "다운로드 및 검증 중...",
+    "downloaded": "{{fileName}} 다운로드와 검증이 완료되었습니다. ({{size}})",
+    "installing": "설치 및 재시작 준비 중...",
+    "installRestarting": "업데이트를 적용하고 다시 시작합니다.",
+    "installAndRestart": "설치 후 재시작",
+    "openDownloadFolder": "다운로드 폴더 열기",
+    "unsupportedPlatform": "Linux ZIP 자동 업데이트는 Linux 패키지 앱에서만 사용할 수 있습니다.",
+    "notPackaged": "개발 프리뷰에서는 업데이트 확인이 비활성화됩니다.",
+    "checkFailed": "업데이트 확인 실패: {{message}}",
+    "downloadFailed": "업데이트 다운로드 실패: {{message}}",
+    "checksumFailed": "체크섬 검증에 실패했습니다. 업데이트를 설치하지 않았습니다.",
+    "installFailed": "설치 실패: {{message}}",
+    "releasePage": "릴리즈 페이지 열기",
+    "writableInstallRequired": "설치 폴더에 쓸 수 없습니다. 다운로드한 ZIP으로 수동 교체하세요.",
+    "linuxOnly": "Linux ZIP 자동 업데이트는 Linux ZIP 패키지에서만 사용됩니다.",
+    "lastCheckAt": "마지막 확인: {{value}}"
+  },
   "canvas": {
     "tool": {
       "current": "도구",

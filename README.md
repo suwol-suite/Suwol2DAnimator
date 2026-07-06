@@ -275,6 +275,19 @@ Atlas export is optional. Existing individual texture export remains the
 fallback path, and Unity uses atlas regions only when an attachment image name
 matches a region in the `.suwol2d` `atlases` array.
 
+## Linux ZIP Auto Update
+
+Linux ZIP builds can check public GitHub Releases for
+`suwol2d-linux-x64-update.json`, download the matching
+`Suwol 2D Animator-<version>-linux-x64.zip`, verify SHA256, and stage the
+update under app user data. Install and restart is enabled only for packaged
+Linux apps when the install folder is writable; otherwise the verified ZIP stays
+available for manual replacement.
+
+Manual `workflow_dispatch` runs are artifact verification only. Tag push release
+runs include the ZIP, `checksums-linux-x64.txt`, and
+`suwol2d-linux-x64-update.json` as GitHub Release assets.
+
 ## Release Documents
 
 - `docs/release-checklist-v12.md`
@@ -287,6 +300,7 @@ matches a region in the `.suwol2d` `atlases` array.
 - `docs/atlas-packing-texture-atlas-v17.md`
 - `docs/atlas-qa-release-refresh-v18.md`
 - `docs/atlas-qa-results-v18.md`
+- `docs/linux-zip-auto-update-v19.md`
 - `unity/com.suwol.suwol2d/Documentation~/index.md`
 - `unity/com.suwol.suwol2d/Documentation~/packaging-release-readiness-v12.md`
 - `unity/com.suwol.suwol2d/Documentation~/atlas-packing-texture-atlas-v17.md`

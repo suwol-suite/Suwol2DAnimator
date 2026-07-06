@@ -2,10 +2,13 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { dirname, join } from 'node:path';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { registerProjectIpc } from './ipc/project-ipc';
-import { defaultAppSettings, normalizeAppSettings, type AppSettings } from '../shared/app-settings';
+import { defaultAppSettings, normalizeAppSettings, normalizeUpdateSettings, type AppSettings, type UpdateSettings } from '../shared/app-settings';
 import { createTranslator } from '../shared/i18n/translate';
 import { fallbackLocale, normalizeLocale } from '../shared/i18n/locale-manifest';
 import { configureApplicationMenu } from './menu';
+import { LinuxUpdateService } from './update/linux-update-service';
+
+const linuxUpdateService = new LinuxUpdateService();
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -63,8 +66,8 @@ function registerAppIpc(): void {
     return readAppSettings();
   });
 
-  ipcMain.handle('app:save-settings', async (_event, settings: AppSettings): Promise<AppSettings> => {
-    const normalized = normalizeAppSettings(settings);
+  ipcMain.handle('app:save-settings', async (_event, settings: Partial<AppSettings>): Promise<AppSettings> => {
+    const normalized = normalizeAppSettings(mergeAppSettings(await readAppSettings(), settings));
     await writeAppSettings(normalized);
     configureApplicationMenu(normalized.locale);
     return normalized;
@@ -90,6 +93,41 @@ function registerAppIpc(): void {
   ipcMain.handle('app:force-close', (event) => {
     BrowserWindow.fromWebContents(event.sender)?.destroy();
   });
+
+  ipcMain.handle('update:get-settings', async (): Promise<UpdateSettings> => {
+    return (await readAppSettings()).updates;
+  });
+
+  ipcMain.handle('update:save-settings', async (_event, settings: Partial<UpdateSettings>): Promise<UpdateSettings> => {
+    const current = await readAppSettings();
+    const next = normalizeAppSettings({
+      ...current,
+      updates: {
+        ...current.updates,
+        ...settings
+      }
+    });
+    await writeAppSettings(next);
+    return next.updates;
+  });
+
+  ipcMain.handle('update:check', async () => {
+    const result = await linuxUpdateService.checkForUpdates();
+    await saveUpdateLastCheckAt();
+    return result;
+  });
+
+  ipcMain.handle('update:download', async () => {
+    return linuxUpdateService.downloadUpdate();
+  });
+
+  ipcMain.handle('update:install-and-restart', async () => {
+    return linuxUpdateService.installUpdateAndRestart();
+  });
+
+  ipcMain.handle('update:open-download-folder', async () => {
+    return linuxUpdateService.openDownloadedUpdateFolder();
+  });
 }
 
 async function readAppSettings(): Promise<AppSettings> {
@@ -109,14 +147,14 @@ async function readAppSettings(): Promise<AppSettings> {
 function detectInitialAppSettings(): AppSettings {
   const osLocale = app.getLocale().toLowerCase();
   if (osLocale === 'ko' || osLocale.startsWith('ko-')) {
-    return { locale: 'ko' };
+    return normalizeAppSettings({ locale: 'ko' });
   }
 
   if (!osLocale) {
     return defaultAppSettings;
   }
 
-  return { locale: fallbackLocale };
+  return normalizeAppSettings({ locale: fallbackLocale });
 }
 
 async function writeAppSettings(settings: AppSettings): Promise<void> {
@@ -127,6 +165,29 @@ async function writeAppSettings(settings: AppSettings): Promise<void> {
 
 function getAppSettingsPath(): string {
   return join(app.getPath('userData'), 'settings.json');
+}
+
+function mergeAppSettings(current: AppSettings, incoming: Partial<AppSettings>): AppSettings {
+  return normalizeAppSettings({
+    ...current,
+    ...incoming,
+    updates: {
+      ...current.updates,
+      ...(incoming.updates ?? {})
+    }
+  });
+}
+
+async function saveUpdateLastCheckAt(): Promise<void> {
+  const current = await readAppSettings();
+  const next = normalizeAppSettings({
+    ...current,
+    updates: normalizeUpdateSettings({
+      ...current.updates,
+      lastCheckAt: new Date().toISOString()
+    })
+  });
+  await writeAppSettings(next);
 }
 
 app.on('window-all-closed', () => {

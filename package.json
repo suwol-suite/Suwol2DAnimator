@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "verify:format": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-format.mjs",
     "verify:locales": "node scripts/verify-locales.mjs",
+    "verify:linux-update": "node scripts/verify-linux-update.mjs",
     "verify:unity": "node scripts/unity-smoke-v9.mjs",
     "verify:unity:release": "node scripts/unity-smoke-v9.mjs --release",
     "dist:win": "electron-builder --win",
@@ -24,13 +25,14 @@
     "dist:win:nsis": "electron-builder --win nsis",
     "dist:linux": "electron-builder --linux AppImage tar.gz --x64 --publish never",
     "dist:linux:zip": "electron-builder --linux zip --x64 --publish never",
-    "release:check": "npm.cmd run typecheck && npm.cmd run build && npm.cmd audit && npm.cmd run verify:format && npm.cmd run verify:locales && npm.cmd run verify:unity",
+    "release:check": "npm.cmd run typecheck && npm.cmd run build && npm.cmd audit && npm.cmd run verify:format && npm.cmd run verify:locales && npm.cmd run verify:linux-update && npm.cmd run verify:unity",
     "release:win": "npm.cmd run release:check && npm.cmd run dist:win",
     "release:checksums": "node scripts/create-checksums.mjs",
     "release:unity-package": "node scripts/zip-unity-package.mjs",
     "smoke:packaged": "node scripts/smoke-packaged-app.mjs"
   },
   "dependencies": {
+    "extract-zip": "^2.0.1",
     "lucide-react": "^1.23.0",
     "pngjs": "^7.0.0",
     "react": "^19.2.7",

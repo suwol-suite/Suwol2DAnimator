@@ -6,6 +6,7 @@ import {
   Bone,
   Box,
   Download,
+  ExternalLink,
   FilePlus2,
   FolderOpen,
   ImagePlus,
@@ -15,6 +16,7 @@ import {
   Pause,
   Play,
   Redo2,
+  RefreshCw,
   RotateCcw,
   Save,
   Sparkles,
@@ -59,6 +61,8 @@ import type { ValidationIssue } from '../../shared/validation';
 import { createUnityRuntimeExport } from '../../shared/export-suwol2d';
 import { suwolReleaseInfo } from '../../shared/release-info';
 import type { LocaleCode, TranslationKey, TranslationParams } from '../../shared/i18n/types';
+import type { UpdateCheckResult, UpdateDownloadResult, UpdateInstallResult } from '../../shared/update/update-types';
+import type { UpdateSettings } from '../../shared/app-settings';
 import {
   attachmentExistsInAnySkin,
   cloneAttachment,
@@ -1933,6 +1937,121 @@ function LanguageSelector({
 
 function AboutReleasePanel() {
   const { t, locale, setLocale, supportedLocales } = useI18n();
+  const [updateSettings, setUpdateSettings] = useState<UpdateSettings>({ autoCheckOnStart: true });
+  const [updateCheck, setUpdateCheck] = useState<UpdateCheckResult | null>(null);
+  const [updateDownload, setUpdateDownload] = useState<UpdateDownloadResult | null>(null);
+  const [updateInstall, setUpdateInstall] = useState<UpdateInstallResult | null>(null);
+  const [updateBusy, setUpdateBusy] = useState<'check' | 'download' | 'install' | ''>('');
+  const [updateSettingsLoaded, setUpdateSettingsLoaded] = useState(false);
+  const [updateSettingsWarning, setUpdateSettingsWarning] = useState('');
+  const isLinux = window.suwol.platform === 'linux';
+  const updateManifest = updateDownload?.manifest ?? updateCheck?.manifest;
+
+  useEffect(() => {
+    let cancelled = false;
+    window.suwol.update.getUpdateSettings()
+      .then((settings) => {
+        if (!cancelled) {
+          setUpdateSettings(settings);
+          setUpdateSettingsLoaded(true);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setUpdateSettingsWarning(getErrorMessage(error));
+          setUpdateSettingsLoaded(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!updateSettingsLoaded || !updateSettings.autoCheckOnStart || !isLinux) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void handleCheckForUpdates(true);
+    }, 7000);
+
+    return () => window.clearTimeout(timeout);
+  }, [isLinux, updateSettings.autoCheckOnStart, updateSettingsLoaded]);
+
+  async function handleUpdateAutoCheckChange(autoCheckOnStart: boolean): Promise<void> {
+    setUpdateSettings((current) => ({ ...current, autoCheckOnStart }));
+    setUpdateSettingsWarning('');
+    try {
+      const saved = await window.suwol.update.saveUpdateSettings({ autoCheckOnStart });
+      setUpdateSettings(saved);
+    } catch (error) {
+      setUpdateSettingsWarning(getErrorMessage(error));
+    }
+  }
+
+  async function handleCheckForUpdates(isAutomatic = false): Promise<void> {
+    setUpdateBusy('check');
+    setUpdateInstall(null);
+    if (!isAutomatic) {
+      setUpdateDownload(null);
+    }
+
+    try {
+      setUpdateCheck(await window.suwol.update.checkForUpdates());
+      setUpdateSettings(await window.suwol.update.getUpdateSettings());
+    } catch (error) {
+      setUpdateCheck({
+        available: false,
+        currentVersion: suwolReleaseInfo.appVersion,
+        reason: `checkFailed:${getErrorMessage(error)}`
+      });
+    } finally {
+      setUpdateBusy('');
+    }
+  }
+
+  async function handleDownloadUpdate(): Promise<void> {
+    setUpdateBusy('download');
+    setUpdateInstall(null);
+    try {
+      setUpdateDownload(await window.suwol.update.downloadUpdate());
+    } catch (error) {
+      setUpdateDownload({
+        ok: false,
+        errorCode: 'downloadFailed',
+        message: getErrorMessage(error)
+      });
+    } finally {
+      setUpdateBusy('');
+    }
+  }
+
+  async function handleInstallUpdate(): Promise<void> {
+    setUpdateBusy('install');
+    try {
+      setUpdateInstall(await window.suwol.update.installUpdateAndRestart());
+    } catch (error) {
+      setUpdateInstall({
+        ok: false,
+        mode: 'download-only',
+        errorCode: 'installFailed',
+        message: getErrorMessage(error)
+      });
+    } finally {
+      setUpdateBusy('');
+    }
+  }
+
+  async function handleOpenDownloadFolder(): Promise<void> {
+    const result = await window.suwol.update.openDownloadedUpdateFolder();
+    setUpdateDownload((current) => ({
+      ...(current ?? result),
+      ...(!result.ok ? result : {})
+    }));
+  }
+
   return (
     <section className="inspector-section about-panel">
       <h2><Info size={15} /> {t('about.title')}</h2>
@@ -1948,6 +2067,45 @@ function AboutReleasePanel() {
         locales={supportedLocales}
         onChange={(nextLocale) => void setLocale(nextLocale)}
       />
+      <div className="update-panel">
+        <h3>{t('update.title')}</h3>
+        <ReadonlyRow label={t('update.currentVersion')} value={suwolReleaseInfo.appVersion} />
+        <label className="field-row checkbox-row">
+          <span>{t('update.autoCheckOnStart')}</span>
+          <input
+            type="checkbox"
+            checked={updateSettings.autoCheckOnStart}
+            onChange={(event) => void handleUpdateAutoCheckChange(event.target.checked)}
+          />
+        </label>
+        <p className="update-note">{isLinux ? t('update.linuxOnly') : t('update.unsupportedPlatform')}</p>
+        {updateSettings.lastCheckAt && (
+          <p className="update-note">{t('update.lastCheckAt', { value: formatDateTime(updateSettings.lastCheckAt) })}</p>
+        )}
+        {updateSettingsWarning && <p className="update-warning">{t('settings.saveWarning', { message: updateSettingsWarning })}</p>}
+        <div className="inspector-action-row wrap update-actions">
+          <button type="button" disabled={updateBusy !== ''} onClick={() => void handleCheckForUpdates()}>
+            <RefreshCw size={14} /> {updateBusy === 'check' ? t('update.checking') : t('update.checkNow')}
+          </button>
+          <button type="button" disabled={!updateCheck?.available || updateBusy !== ''} onClick={() => void handleDownloadUpdate()}>
+            <Download size={14} /> {updateBusy === 'download' ? t('update.downloading') : t('update.download')}
+          </button>
+          <button type="button" disabled={!updateDownload?.ok || updateBusy !== ''} onClick={() => void handleInstallUpdate()}>
+            <RotateCcw size={14} /> {t('update.installAndRestart')}
+          </button>
+          <button type="button" disabled={updateBusy !== ''} onClick={() => void handleOpenDownloadFolder()}>
+            <FolderOpen size={14} /> {t('update.openDownloadFolder')}
+          </button>
+        </div>
+        {updateManifest?.releaseUrl && (
+          <a className="update-release-link" href={updateManifest.releaseUrl} target="_blank" rel="noreferrer">
+            <ExternalLink size={14} /> {t('update.releasePage')}
+          </a>
+        )}
+        <p className={getUpdateMessageClass(updateCheck, updateDownload, updateInstall)}>
+          {getUpdateMessage(t, updateBusy, updateCheck, updateDownload, updateInstall)}
+        </p>
+      </div>
     </section>
   );
 }
@@ -6015,6 +6173,93 @@ function clampInteger(value: number, fallback: number, min: number, max: number)
 function toNumber(value: string, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getUpdateMessage(
+  t: (key: TranslationKey, params?: TranslationParams) => string,
+  busy: 'check' | 'download' | 'install' | '',
+  check: UpdateCheckResult | null,
+  download: UpdateDownloadResult | null,
+  install: UpdateInstallResult | null
+): string {
+  if (busy === 'check') return t('update.checking');
+  if (busy === 'download') return t('update.downloading');
+  if (busy === 'install') return t('update.installing');
+
+  if (install) {
+    if (install.ok && install.mode === 'install-restart') return t('update.installRestarting');
+    if (install.ok && install.mode === 'download-only') return t('update.writableInstallRequired');
+    return t('update.installFailed', { message: install.message ?? install.errorCode ?? '' });
+  }
+
+  if (download) {
+    if (download.ok) {
+      return t('update.downloaded', {
+        fileName: download.manifest?.fileName ?? '',
+        size: formatBytes(download.manifest?.size ?? 0)
+      });
+    }
+
+    if (download.errorCode === 'checksumFailed') {
+      return t('update.checksumFailed');
+    }
+
+    return t('update.downloadFailed', { message: download.message ?? download.errorCode ?? '' });
+  }
+
+  if (check) {
+    if (check.available) {
+      return t('update.available', { version: check.latestVersion ?? '' });
+    }
+
+    if (check.reason === 'unsupportedPlatform') return t('update.unsupportedPlatform');
+    if (check.reason === 'notPackaged') return t('update.notPackaged');
+    if (check.reason?.startsWith('checkFailed:')) return t('update.checkFailed', { message: check.reason.replace(/^checkFailed:/, '') });
+    return t('update.noUpdate');
+  }
+
+  return t('update.idle');
+}
+
+function getUpdateMessageClass(
+  check: UpdateCheckResult | null,
+  download: UpdateDownloadResult | null,
+  install: UpdateInstallResult | null
+): string {
+  if (download?.ok || install?.ok || check?.available) {
+    return 'update-status update-status-good';
+  }
+
+  if (download?.ok === false || install?.ok === false || check?.reason?.startsWith('checkFailed:')) {
+    return 'update-status update-status-warning';
+  }
+
+  return 'update-status';
+}
+
+function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '0 B';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatDateTime(value: string): string {
+  const time = Date.parse(value);
+  if (!Number.isFinite(time)) {
+    return value;
+  }
+
+  return new Date(time).toLocaleString();
 }
 
 function round(value: number): number {

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       upload_to_github_release:
-        description: "Upload generated ZIP files to the matching GitHub Release"
+        description: "Manual runs are artifact-only; tag push uploads to GitHub Release"
         required: false
         default: "false"
         type: choice
@@ -60,6 +60,37 @@ jobs:
           sha256sum *.zip > checksums-linux-x64.txt
           cat checksums-linux-x64.txt
 
+      - name: Create Linux update manifest
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          RELEASE_TAG="v${VERSION}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            RELEASE_TAG="${GITHUB_REF_NAME}"
+          fi
+
+          cd release
+          ZIP_FILE="$(ls *linux-x64.zip | head -n 1)"
+          ZIP_SHA="$(sha256sum "$ZIP_FILE" | awk '{print $1}')"
+          ZIP_SIZE="$(stat -c%s "$ZIP_FILE")"
+
+          cat > suwol2d-linux-x64-update.json <<EOF
+          {
+            "version": "$VERSION",
+            "platform": "linux",
+            "arch": "x64",
+            "fileName": "$ZIP_FILE",
+            "sha256": "$ZIP_SHA",
+            "size": $ZIP_SIZE,
+            "releaseTag": "$RELEASE_TAG",
+            "releaseUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}",
+            "publishedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          }
+          EOF
+
+          cat suwol2d-linux-x64-update.json
+
       - name: Upload Linux ZIP artifact
         uses: actions/upload-artifact@v4
         with:
@@ -67,14 +98,16 @@ jobs:
           path: |
             release/*.zip
             release/checksums-linux-x64.txt
+            release/suwol2d-linux-x64-update.json
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.upload_to_github_release == 'true'
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
             release/*.zip
             release/checksums-linux-x64.txt
+            release/suwol2d-linux-x64-update.json
           fail_on_unmatched_files: true

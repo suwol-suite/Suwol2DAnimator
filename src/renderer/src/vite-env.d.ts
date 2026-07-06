@@ -1,8 +1,9 @@
 /// <reference types="vite/client" />
 
 import type { HydratedProjectResult, ImportedImage, Suwol2DAtlasExportOptions, Suwol2DProjectFile } from '../../shared/suwol2d-format';
-import type { AppSettings } from '../../shared/app-settings';
+import type { AppSettings, UpdateSettings } from '../../shared/app-settings';
 import type { LocaleCode } from '../../shared/i18n/types';
+import type { UpdateCheckResult, UpdateDownloadResult, UpdateInstallResult } from '../../shared/update/update-types';
 
 export interface ExportJsonResult {
   exportPath: string;
@@ -42,11 +43,19 @@ export interface SuwolPreloadApi {
   };
   app: {
     getAppSettings(): Promise<AppSettings>;
-    saveAppSettings(settings: AppSettings): Promise<AppSettings>;
+    saveAppSettings(settings: Partial<AppSettings>): Promise<AppSettings>;
     confirmUnsavedChanges(projectName: string, locale?: LocaleCode): Promise<UnsavedChangesChoice>;
     forceClose(): Promise<void>;
     onMenuCommand(callback: (command: AppMenuCommand) => void): () => void;
     onCloseRequest(callback: () => void): () => void;
+  };
+  update: {
+    checkForUpdates(): Promise<UpdateCheckResult>;
+    downloadUpdate(): Promise<UpdateDownloadResult>;
+    installUpdateAndRestart(): Promise<UpdateInstallResult>;
+    openDownloadedUpdateFolder(): Promise<UpdateDownloadResult>;
+    getUpdateSettings(): Promise<UpdateSettings>;
+    saveUpdateSettings(settings: Partial<UpdateSettings>): Promise<UpdateSettings>;
   };
 }
 

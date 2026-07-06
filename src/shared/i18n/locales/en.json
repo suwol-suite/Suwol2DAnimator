@@ -112,6 +112,33 @@
     "loadWarning": "Could not load language settings: {{message}}",
     "saveWarning": "Could not save language settings: {{message}}"
   },
+  "update": {
+    "title": "Updates",
+    "currentVersion": "Current Version",
+    "autoCheckOnStart": "Auto Check",
+    "checkNow": "Check for Updates",
+    "checking": "Checking for updates...",
+    "idle": "Linux ZIP auto update checks GitHub Releases without a token.",
+    "noUpdate": "No update is available.",
+    "available": "New version {{version}} is available.",
+    "download": "Download",
+    "downloading": "Downloading and verifying...",
+    "downloaded": "Downloaded and verified {{fileName}} ({{size}}).",
+    "installing": "Preparing install and restart...",
+    "installRestarting": "Applying the update and restarting.",
+    "installAndRestart": "Install and Restart",
+    "openDownloadFolder": "Open Download Folder",
+    "unsupportedPlatform": "Linux ZIP auto update is available only in the Linux packaged app.",
+    "notPackaged": "Update checks are disabled in development preview.",
+    "checkFailed": "Update check failed: {{message}}",
+    "downloadFailed": "Update download failed: {{message}}",
+    "checksumFailed": "Checksum verification failed. The update was not installed.",
+    "installFailed": "Install failed: {{message}}",
+    "releasePage": "Open Release Page",
+    "writableInstallRequired": "The install folder is not writable. Use the downloaded ZIP to replace the app manually.",
+    "linuxOnly": "Linux ZIP auto update is used only by Linux ZIP packages.",
+    "lastCheckAt": "Last check: {{value}}"
+  },
   "canvas": {
     "tool": {
       "current": "Tool",

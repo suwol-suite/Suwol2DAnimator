@@ -40,5 +40,13 @@ contextBridge.exposeInMainWorld('suwol', {
       ipcRenderer.on('app:request-close', listener);
       return () => ipcRenderer.removeListener('app:request-close', listener);
     }
+  },
+  update: {
+    checkForUpdates: () => ipcRenderer.invoke('update:check'),
+    downloadUpdate: () => ipcRenderer.invoke('update:download'),
+    installUpdateAndRestart: () => ipcRenderer.invoke('update:install-and-restart'),
+    openDownloadedUpdateFolder: () => ipcRenderer.invoke('update:open-download-folder'),
+    getUpdateSettings: () => ipcRenderer.invoke('update:get-settings'),
+    saveUpdateSettings: (settings: unknown) => ipcRenderer.invoke('update:save-settings', settings)
   }
 });
